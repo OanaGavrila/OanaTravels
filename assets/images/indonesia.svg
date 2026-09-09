@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#CE1126"/>
+      <stop offset="50%" stop-color="#CE1126"/>
+      <stop offset="50%" stop-color="#fff"/>
+      <stop offset="100%" stop-color="#fff"/>
+    </linearGradient>
+  </defs>
+  <rect width="600" height="400" fill="url(#bg)"/>
+  <text x="300" y="190" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="42" font-weight="800" fill="#fff" letter-spacing="-0.02em">Indonesia</text>
+  <text x="300" y="345" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="16" font-weight="400" fill="rgba(255,255,255,0.75)">2 cities · Maps &amp; Guide</text>
+</svg>

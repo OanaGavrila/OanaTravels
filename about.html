@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>About — OanaTravels</title>
+  <meta name="description" content="About OanaTravels — meet the creator, watch map previews on Instagram, get in touch or collaborate.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div data-header></div>
+
+  <main>
+    <!-- ============ ABOUT HERO ============ -->
+    <section class="page-hero">
+      <div class="container">
+        <h1 class="page-hero-title reveal">Hi, I'm Oana</h1>
+        <p class="page-hero-sub reveal">I craft digital maps and travel guides so you can explore the world with confidence — one city at a time.</p>
+      </div>
+    </section>
+
+    <!-- ============ STORY ============ -->
+    <section class="section about-story">
+      <div class="container about-grid">
+        <div class="about-visual reveal">
+          <div class="about-avatar">🌍</div>
+        </div>
+        <div class="about-text reveal">
+          <span class="section-tag">My Story</span>
+          <h2 class="section-title">Maps Made with Love</h2>
+          <p>Every map I make is born from real travel — walking the streets, testing the routes, finding the hidden corners no guidebook mentions.</p>
+          <p>I turn that experience into clean, colourful digital maps and honest guides, so you can spend less time planning and more time exploring.</p>
+          <p>Got feedback, a city request, or a collaboration idea? I'd love to hear from you.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ INSTAGRAM ============ -->
+    <section class="section instagram" id="instagram">
+      <div class="container">
+        <div class="section-head reveal">
+          <span class="section-tag">Follow Along</span>
+          <h2 class="section-title">See the Maps in Action</h2>
+          <p class="section-subtitle">Preview snippets of my maps and videos on Instagram before you buy.</p>
+        </div>
+        <div class="about-insta-layout reveal">
+          <div class="insta-embed">
+            <div class="insta-embed-frame" id="instaEmbed">
+              <p>Video previews from my travels load here.</p>
+              <div class="ig-tiles-grid" id="igTilesGrid"></div>
+              <a class="btn btn-insta" href="https://instagram.com/oanagavrila19" target="_blank" rel="noopener">
+                Open @oanagavrila19
+              </a>
+            </div>
+          </div>
+          <div class="insta-copy">
+            <h3 class="about-insta-title">@oanagavrila19</h3>
+            <p>Videos and previews of each map — what's inside, what's worth seeing, and how to make the most of your trip.</p>
+            <a class="btn btn-insta" href="https://instagram.com/oanagavrila19" target="_blank" rel="noopener">Follow on Instagram</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ CONTACT + COLLABORATION ============ -->
+    <section class="section contact-section" id="contact">
+      <div class="container">
+        <div class="section-head reveal">
+          <span class="section-tag">Get in Touch</span>
+          <h2 class="section-title">Contact & Collaboration</h2>
+          <p class="section-subtitle">Questions, city requests, or collaborations — drop me a message.</p>
+        </div>
+
+        <div class="contact-grid">
+          <!-- Contact info -->
+          <div class="contact-info reveal">
+            <h3 class="contact-heading">Contact Details</h3>
+            <div class="contact-item">
+              <span class="contact-icon">📧</span>
+              <a href="mailto:hi@oanatravels.com">hi@oanatravels.com</a>
+            </div>
+            <div class="contact-item">
+              <span class="contact-icon">📷</span>
+              <a href="https://instagram.com/oanagavrila19" target="_blank" rel="noopener">@oanagavrila19</a>
+            </div>
+            <div class="contact-item">
+              <span class="contact-icon">🕐</span>
+              <span>Usually replies within 24h</span>
+            </div>
+
+            <div class="collab-card">
+              <h3 class="contact-heading">Collaborate</h3>
+              <p>Let's work together — brand collaborations, travel creators, city guides & sponsorships.</p>
+              <ul class="collab-list">
+                <li>🤝 Brand partnerships</li>
+                <li>🌏 Custom city maps</li>
+                <li>📹 Travel content</li>
+              </ul>
+            </div>
+          </div>
+
+          <!-- Contact form -->
+          <div class="contact-form reveal" id="contactFormWrap">
+            <form id="contactForm" novalidate>
+              <div class="form-group">
+                <label class="field-label" for="cfName">Name</label>
+                <input type="text" id="cfName" class="field-input" placeholder="Your name" required>
+              </div>
+              <div class="form-group">
+                <label class="field-label" for="cfEmail">Email</label>
+                <input type="email" id="cfEmail" class="field-input" placeholder="you@example.com" required>
+              </div>
+              <div class="form-group">
+                <label class="field-label" for="cfMessage">Message</label>
+                <textarea id="cfMessage" class="field-input" rows="5" placeholder="Tell me what's on your mind — a question, a city request, or a collaboration idea." required></textarea>
+              </div>
+              <button type="submit" class="btn btn-primary" id="cfSubmit">Send Message</button>
+              <p class="form-msg" id="cfMsg" hidden></p>
+            </form>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div data-footer></div>
+
+  <script src="js/components.js"></script>
+  <script src="js/about.js"></script>
+</body>
+</html>

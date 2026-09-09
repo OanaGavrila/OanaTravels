@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shop — OanaTravels</title>
+  <meta name="description" content="Shop digital travel maps and guides. Country packs, city maps and travel guides for Vietnam, Thailand, Greece, UAE and more.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div data-header></div>
+
+  <main>
+    <!-- ============ SHOP HERO ============ -->
+    <section class="page-hero">
+      <div class="container">
+        <h1 class="page-hero-title reveal">Choose Your Adventure</h1>
+        <p class="page-hero-sub reveal">Pick a country. Then choose a city map, the whole country pack, or the travel guide — and buy it in a couple of clicks.</p>
+      </div>
+    </section>
+
+    <!-- ============ SHOP CONTENT ============ -->
+    <section class="shop-main section">
+      <div class="container">
+        <div class="section-subhead reveal">
+          <h2 class="section-title">Countries</h2>
+          <p class="section-subtitle">Tap a country to see every city map, the country pack and the guide.</p>
+        </div>
+        <div class="country-grid" id="countryGrid">
+          <!-- Country cards rendered by shop.js -->
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============ PRODUCT MODAL ============ -->
+  <div class="modal" id="productModal" hidden>
+    <div class="modal-backdrop" id="modalBackdrop"></div>
+    <div class="modal-panel" id="modalPanel">
+      <button class="modal-close" id="modalClose" aria-label="Close">×</button>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <div data-footer></div>
+
+  <script src="js/components.js"></script>
+  <script src="js/shop.js"></script>
+</body>
+</html>

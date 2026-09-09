@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 400">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#010066"/>
+      <stop offset="100%" stop-color="#000040"/>
+    </linearGradient>
+  </defs>
+  <rect width="600" height="400" fill="url(#bg)"/>
+  <rect x="0" y="0" width="600" height="160" fill="#010066"/>
+  <rect x="0" y="160" width="600" height="16" fill="#fff"/>
+  <rect x="0" y="176" width="600" height="48" fill="#CE1126"/>
+  <rect x="0" y="224" width="600" height="16" fill="#fff"/>
+  <rect x="0" y="240" width="600" height="160" fill="#010066"/>
+  <circle cx="140" cy="100" r="40" fill="#FFCC00"/>
+  <polygon points="170,80 175,95 190,95 178,105 182,120 170,110 158,120 162,105 150,95 165,95" fill="#FFCC00"/>
+  <text x="380" y="310" text-anchor="middle" font-family="Inter,system-ui,sans-serif" font-size="42" font-weight="800" fill="#fff" letter-spacing="-0.02em">Malaysia</text>
+</svg>

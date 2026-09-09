@@ -1,0 +1,96 @@
+{
+  "countries": [
+    {
+      "id": "vietnam",
+      "name": "Vietnam",
+      "flag": "🇻🇳",
+      "emoji": "🛵",
+      "cities": ["Hue", "Ninh Binh", "Da Nang", "Ho Chi Minh", "Hanoi", "Hoi An"],
+      "moreSoonCities": ["Da Nang", "Ho Chi Minh", "Hanoi", "Hoi An"],
+      "guide": { "name": "Vietnam Travel Guide", "included": true }
+    },
+    {
+      "id": "thailand",
+      "name": "Thailand",
+      "flag": "🇹🇭",
+      "emoji": "🌴",
+      "cities": ["Bangkok", "Chiang Mai", "Ubon", "Phuket", "Krabi"],
+      "guide": { "name": "Thailand Travel Guide", "included": true }
+    },
+    {
+      "id": "greece",
+      "name": "Greece",
+      "flag": "🇬🇷",
+      "emoji": "🏛️",
+      "cities": ["Athens", "Aegina"],
+      "guide": { "name": "Greece Travel Guide", "included": true }
+    },
+    {
+      "id": "uae",
+      "name": "United Arab Emirates",
+      "flag": "🇦🇪",
+      "emoji": "🏙️",
+      "cities": ["Abu Dhabi"],
+      "guide": { "name": "UAE Travel Guide", "included": true }
+    },
+    {
+      "id": "indonesia",
+      "name": "Indonesia",
+      "flag": "🇮🇩",
+      "emoji": "🌋",
+      "cities": ["Surabaya", "Bali"],
+      "moreSoon": true,
+      "guide": { "name": "Indonesia Travel Guide", "included": true }
+    },
+    {
+      "id": "malaysia",
+      "name": "Malaysia",
+      "flag": "🇲🇾",
+      "emoji": "🗼",
+      "cities": ["Kuala Lumpur"],
+      "guide": { "name": "Malaysia Travel Guide", "included": true }
+    },
+    {
+      "id": "philippines",
+      "name": "Philippines",
+      "flag": "🇵🇭",
+      "emoji": "🏝️",
+      "cities": ["Coron", "El Nido"],
+      "moreSoon": true,
+      "guide": { "name": "Philippines Travel Guide", "included": true }
+    },
+    {
+      "id": "hongkong",
+      "name": "Hong Kong",
+      "flag": "🇭🇰",
+      "emoji": "🌃",
+      "cities": ["Hong Kong"],
+      "moreSoon": true,
+      "guide": { "name": "Hong Kong Travel Guide", "included": true }
+    },
+    {
+      "id": "macau",
+      "name": "Macau",
+      "flag": "🇲🇴",
+      "emoji": "🎲",
+      "cities": ["Macau"],
+      "moreSoon": true,
+      "guide": { "name": "Macau Travel Guide", "included": true }
+    },
+    {
+      "id": "romania",
+      "name": "Romania",
+      "flag": "🇷🇴",
+      "emoji": "🏰",
+      "cities": ["Bucharest", "Brasov"],
+      "moreSoonCities": ["Brasov"],
+      "guide": { "name": "Romania Travel Guide", "included": true }
+    }
+  ],
+  "pricing": {
+    "map": 4,
+    "guide": 7,
+    "packBase": 2,
+    "packPerCity": 3
+  }
+}
