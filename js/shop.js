@@ -26,21 +26,16 @@
 
   function flagOf(id) {
     var codes = {
-      vietnam: 'VN', thailand: 'TH', greece: 'GR', uae: 'AE',
-      indonesia: 'ID', malaysia: 'MY', philippines: 'PH',
-      hongkong: 'HK', macau: 'MO', romania: 'RO'
+      vietnam: 'vn', thailand: 'th', greece: 'gr', uae: 'ae',
+      indonesia: 'id', malaysia: 'my', philippines: 'ph',
+      hongkong: 'hk', macau: 'mo', romania: 'ro'
     };
-    var iso = codes[id] || '';
-    if (!iso) return '\uD83C\uDF0D';
-    return iso.toUpperCase().split('').map(function (ch) {
-      return String.fromCodePoint(127397 + ch.charCodeAt(0));
-    }).join('');
+    return codes[id] || 'xx';
   }
 
   function renderCountries(countries) {
     els.countryGrid.innerHTML = '';
     countries.forEach(function (country, i) {
-      var imgSrc = 'assets/images/' + country.id + '.svg';
       var cityWord = country.cities.length === 1 ? 'city' : 'cities';
 
       var card = O.em('a', 'shop-country-card reveal');
@@ -50,21 +45,17 @@
 
       /* --- media area --- */
       var media = O.em('div', 'shop-country-media');
-
-      var img = document.createElement('img');
-      img.src = imgSrc;
-      img.alt = country.name;
-      img.loading = 'lazy';
-      img.addEventListener('error', function () {
-        var fallback = O.em('div', 'flag-placeholder flag-' + country.id);
-        var emoji = O.em('span', 'pack-emoji', flagOf(country.id));
-        fallback.appendChild(emoji);
-        media.replaceChild(fallback, img);
-      });
-      media.appendChild(img);
-
-      var flagBadge = O.em('span', 'shop-country-flag', flagOf(country.id));
-      media.appendChild(flagBadge);
+      var flag = O.em('span', 'shop-country-media-flag fi fi-' + flagOf(country.id));
+      media.appendChild(flag);
+      if (country.poster) {
+        var poster = document.createElement('img');
+        poster.className = 'shop-country-media-poster';
+        poster.src = 'assets/posters/' + country.name + '/' + country.poster + '.png';
+        poster.alt = country.name;
+        poster.loading = 'lazy';
+        poster.addEventListener('error', function () { poster.remove(); });
+        media.appendChild(poster);
+      }
 
       /* --- body area --- */
       var body = O.em('div', 'shop-country-body');

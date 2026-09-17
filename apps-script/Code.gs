@@ -64,7 +64,7 @@ var COUNTRY_NAMES = {
   'malaysia': 'Malaysia',
   'philippines': 'Philippines',
   'hongkong': 'Hong Kong',
-  'macau': 'Macau',
+  'macau': 'Macao',
   'romania': 'Romania'
 };
 
@@ -122,9 +122,9 @@ var PRODUCT_FILES = {
     maps: {
       'Bangkok': '1yp6OoVEA-8amxGnhDO90p6kTkuZblXE',
       'Krabi': '1XTURmVYes8UsaYlwJsIpON2NjBoEUiw',
-      'Chiang Mai': '126LlXL73jPpDheADsJByQzcckIT5ZNs', // Drive file is named "Northern Thailand"
+      'Northern Thailand': '126LlXL73jPpDheADsJByQzcckIT5ZNs', // Drive file is named "Northern Thailand"
       'Phuket': '1hhdVwZXmkMuMZUO_iwWRIZ-NU8CXgkI',
-      'Ubon': '1RsUKfopCdAqAvcC9WZCnYNJD8_w44AY'          // Drive file is named "Ubon Ratchathani"
+      'Ubon Ratchathani': '1RsUKfopCdAqAvcC9WZCnYNJD8_w44AY' // Drive file is named "Ubon Ratchathani"
     },
     guide: '1Sy_9Z24Slqfc0hfJxK00Gp_vNd7qK3IWzhuVtVbWeIA'
   }
@@ -187,18 +187,22 @@ function grantAccess_(resolved, email) {
         DriveApp.getFileById(id).addViewer(email);
       } catch (err) {
         r.undelivered = true; // one bad file must not block the rest
+        r.failedIds = r.failedIds || [];
+        r.failedIds.push(id);
       }
     });
   });
 }
 
-/** Send the customer their per-product download links. */
+/** Send the customer their per-product download links (HTML + plain-text). */
 function sendOrderEmail_(email, resolved, total) {
-  MailApp.sendEmail(
-    email,
-    'Your OanaTravels maps & guides are ready! 🌏',
-    buildOrderEmail_(email, resolved)
-  );
+  var subject = 'Your OanaTravels maps & guides are ready! 🌏';
+  MailApp.sendEmail({
+    to: email,
+    subject: subject,
+    body: buildOrderEmail_(email, resolved),
+    htmlBody: buildOrderEmailHtml_(email, resolved)
+  });
 }
 
 function buildOrderEmail_(email, resolved) {
@@ -215,6 +219,49 @@ function buildOrderEmail_(email, resolved) {
   if (!block) return fallbackBody_(email, resolved);
 
   return fillTemplate_(block, choice, resolved);
+}
+
+/** HTML version of the delivery email (nicer in inbox, avoids spam filters). */
+function buildOrderEmailHtml_(email, resolved) {
+  var doc = '';
+  try {
+    doc = DocumentApp.openById(THANKS_DOC_ID).getBody().getText();
+  } catch (err) {
+    return fallbackBodyHtml_(email, resolved); // doc not reachable → built-in message
+  }
+
+  var eng = engSection_(doc);
+  var choice = chooseTemplate_(resolved);
+  var block = extractBlock_(eng, choice.key);
+  if (!block) return fallbackBodyHtml_(email, resolved);
+
+  var country = COUNTRY_NAMES[choice.countryId] || choice.countryId;
+  var city = choice.maps.length ? choice.maps[0] : country;
+
+  var text = htmlEsc_(block);
+  text = text.replace(/\[insert link\]\.?\s*/i, linksHtmlBlock_(resolved));
+  text = text.replace(/\[Country Name\]/gi, htmlEsc_(country));
+  text = text.replace(/\[City Name\]/gi, htmlEsc_(choice.kind === 'guide' ? country : city));
+  text = text.replace(/\[City 1\][^.\n]*/i,
+    htmlEsc_(nameList_(choice.maps.length ? choice.maps : [country])));
+
+  // Strip the obsolete "reply with your email" lines if still in the doc
+  text = text.replace(/\n?\s*To give you access, I need the email address linked to your Google account[.!]?\s*\n?/gi, '\n');
+  text = text.replace(/\n?\s*Please reply to this message with your email[.!]?\s*\n?/gi, '\n');
+
+  text = text
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/[ \t]+$/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/\n/g, '<br>')
+    .trim();
+
+  var hasComingSoon = resolved.some(function (r) { return !r.ids.length; });
+  if (hasComingSoon) {
+    text += '<p style="color:#8a6d3d;background:#fcf8e3;border:1px solid #faebcc;padding:10px 12px;border-radius:8px;font-size:13px;margin:14px 0 0;">One or more of your products is still being prepared \u2014 you will get its link in a follow-up email when it is ready.</p>';
+  }
+
+  return htmlShell_(text, orderFooter_(email));
 }
 
 /** Keep only the ENG part of the thanks document. */
@@ -243,6 +290,7 @@ function chooseTemplate_(resolved) {
       if (!countryId) countryId = it.countryId;
     } else if (r.ids.length) {
       maps.push(it.name);
+      if (!countryId) countryId = it.countryId;
     }
   });
 
@@ -349,6 +397,86 @@ function fileLink_(id) {
   return 'https://drive.google.com/file/d/' + id + '/view';
 }
 
+/** Full HTML email shell with OanaTravels branding. */
+function htmlShell_(content, footer) {
+  return '' +
+    '<div style="background:#f5efe6;padding:28px 16px;font-family:Arial,Helvetica,sans-serif;">' +
+    '  <div style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #ede3d5;">' +
+    '    <div style="background:#2d3a47;padding:22px 28px;">' +
+    '      <span style="color:#ffffff;font-size:20px;font-weight:800;">Oana<span style="color:#cd3c12;">Travels</span></span>' +
+    '    </div>' +
+    '    <div style="padding:28px 28px 24px;">' + content + '</div>' +
+    '    <div style="padding:18px 28px;background:#faf6f0;border-top:1px solid #ede3d5;font-size:12px;color:#6b7280;line-height:1.6;">' + footer + '</div>' +
+    '  </div>' +
+    '</div>';
+}
+
+/** Footer used on order delivery emails. */
+function orderFooter_(email) {
+  return '' +
+    '<p style="margin:0 0 8px;"><strong>How to open your files:</strong> sign in on Google with <strong>' + htmlEsc_(email) + '</strong> \u2014 each link only works with the email used for your order.</p>' +
+    '<p style="margin:0 0 8px;">To make sure future emails from us don\u2019t end up in spam, please add <a href="mailto:hi@oanatravels.com" style="color:#cd3c12;">hi@oanatravels.com</a> to your contacts.</p>' +
+    '<p style="margin:0;">Happy travels,<br>Oana \u2014 OanaTravels</p>';
+}
+
+/** One clickable product card in the HTML email. */
+function linkRow_(label, url) {
+  return '' +
+    '<div style="margin:12px 0;padding:14px 16px;border:1px solid #f0e2d2;border-radius:10px;background:#fdf9f4;">' +
+    '  <div style="font-weight:700;color:#2d3a47;font-size:14px;margin-bottom:10px;">' + htmlEsc_(label) + '</div>' +
+    '  <a href="' + url + '" style="display:inline-block;padding:9px 18px;background:#cd3c12;color:#ffffff;text-decoration:none;border-radius:6px;font-size:13px;font-weight:700;">Open in Google Drive</a>' +
+    '</div>';
+}
+
+/** HTML version of the per-product download links block. */
+function linksHtmlBlock_(resolved) {
+  var out = [];
+  resolved.forEach(function (r) {
+    if (r.item && r.item.type === 'pack') {
+      var cname = COUNTRY_NAMES[r.item.countryId] || r.item.countryId;
+      var entry = PRODUCT_FILES[r.item.countryId];
+      if (entry) {
+        Object.keys(entry.maps).forEach(function (city) {
+          var fid = entry.maps[city];
+          if (fid) out.push(linkRow_(city + ' — ' + cname, fileLink_(fid)));
+        });
+        if (entry.guide) {
+          out.push(linkRow_(cname + ' Travel Guide', fileLink_(entry.guide)));
+        }
+        return;
+      }
+    }
+    if (!r.ids.length) {
+      out.push('<p style="color:#8a6d3d;font-size:13px;margin:10px 0;">• ' + htmlEsc_(r.label) + ' — coming soon (you will get the link by email when it is ready)</p>');
+    } else {
+      r.ids.forEach(function (id) {
+        out.push(linkRow_(r.label, fileLink_(id)));
+      });
+    }
+  });
+  return out.join('\n');
+}
+
+/** HTML fallback delivered when the thanks doc can't be reached. */
+function fallbackBodyHtml_(email, resolved) {
+  return htmlShell_(
+    '<h2 style="color:#2d3a47;font-size:20px;margin:0 0 12px;">Thank you for your order!</h2>' +
+    '<p style="color:#4a5568;font-size:14px;line-height:1.7;margin:0;">Hi there,<br>Your links are below. Each link only works with this email (' + htmlEsc_(email) + ') \u2014 open it while signed in to Google with the same address.</p>' +
+    '<h3 style="color:#2d3a47;font-size:15px;margin:18px 0 6px;">Your products:</h3>' +
+    linksHtmlBlock_(resolved),
+    orderFooter_(email)
+  );
+}
+
+/** Very small HTML-escape for safe embedding of user/template text. */
+function htmlEsc_(s) {
+  return string_(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 /** Log one row per order to the spreadsheet. */
 function logOrder_(email, resolved, total, status) {
   if (!SPREADSHEET_ID) return;
@@ -359,7 +487,13 @@ function logOrder_(email, resolved, total, status) {
     }
     var pachet = resolved.map(function (r) { return r.label; }).join(', ');
     var date = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'M/d/yyyy');
-    sheet.appendRow([pachet, email, status, date, total ? '€' + total : '']);
+    var notes = total ? '€' + total : '';
+    var failed = resolved
+      .filter(function (r) { return r.failedIds && r.failedIds.length; })
+      .map(function (r) { return r.label + ' (Drive access failed)'; })
+      .join('; ');
+    if (failed) notes = (notes ? notes + ' — ' : '') + failed;
+    sheet.appendRow([pachet, email, status, date, notes]);
   } catch (err) { /* logging must never break delivery */ }
 }
 
@@ -375,8 +509,21 @@ function handleContact(data) {
       "Name: " + name + "\n" +
       "Email: " + email + "\n\n" +
       "Message:\n" + message;
+    var html = htmlShell_(
+      '<h2 style="color:#2d3a47;font-size:20px;margin:0 0 12px;">New contact message</h2>' +
+      '<p style="color:#4a5568;font-size:14px;line-height:1.7;margin:0;"><strong>Name:</strong> ' + htmlEsc_(name) + '</p>' +
+      '<p style="color:#4a5568;font-size:14px;line-height:1.7;margin:0;"><strong>Email:</strong> ' + htmlEsc_(email) + '</p>' +
+      '<p style="color:#4a5568;font-size:14px;line-height:1.7;margin:14px 0 0;"><strong>Message:</strong></p>' +
+      '<p style="color:#4a5568;font-size:14px;line-height:1.7;margin:0;">' + htmlEsc_(message).replace(/\n/g, '<br>') + '</p>',
+      '<p style="margin:0;">Sent from the OanaTravels contact form.</p>'
+    );
 
-    MailApp.sendEmail(CONTACT_EMAIL, subject, body);
+    MailApp.sendEmail({
+      to: CONTACT_EMAIL,
+      subject: subject,
+      body: body,
+      htmlBody: html
+    });
 
     return json_({ ok: true });
   } catch (err) {

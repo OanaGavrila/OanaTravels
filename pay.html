@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/flag-icons.min.css">
 </head>
 <body>
   <div data-header></div>
@@ -60,8 +61,9 @@
             <div class="pay-actions">
               <button class="btn btn-paypal" id="btnPaypal">Pay with PayPal</button>
               <button class="btn btn-revolut" id="btnRevolut">Pay with Revolut</button>
+              <button class="btn btn-primary" id="btnFree" hidden>Get My Free Maps</button>
             </div>
-            <p class="secure-note">🔒 After payment you'll be asked to confirm, and your download links are sent to your email.</p>
+            <p class="secure-note" id="secureNote">🔒 After payment you'll be asked to confirm, and your download links are sent to your email.</p>
           </div>
         </div>
 

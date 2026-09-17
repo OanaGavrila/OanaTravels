@@ -28,18 +28,18 @@
   //   3. Paste the whole Code.gs into script.google.com → Deploy →
   //      New deployment → Web app → Execute as: Me → Who has
   //      access: Anyone. Copy the Web app URL below.
-  var APPS_SCRIPT_URL = '';
+  var APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx0bsyq3rKsNh-dUVD5SYnGcMWcteFwo9OOU_yrDUgz8XDxvi31FzhvGApPt20FiZaVMQ/exec';
 
   // PayPal & Revolut (your personal-account handles)
-  var PAYPAL_ME = '';          // e.g. 'oanatravels'
-  var REVOLUT_LINK = '';       // e.g. 'https://revolut.me/oanatravels'
+  var PAYPAL_ME = 'Oanatravels';
+  var REVOLUT_LINK = 'oanagavrila';
 
   // Instagram preview tiles.
   // Each tile: { thumb: path to thumbnail image, post: full Instagram post URL, label: alt text }
   // Thumbnails pulled from Instagram; post links go to the real reels.
   var IG_TILES = [
     { thumb: 'assets/images/ig-1.jpg', post: 'https://www.instagram.com/p/DLXkXI1M87u/', label: 'Instagram reel — map preview' },
-    { thumb: 'assets/images/ig-2.jpg', post: 'https://www.instagram.com/p/Dbhq4zaz73x/', label: 'Instagram reel — travel guide' },
+    { thumb: 'assets/images/ig-2.jpg', post: 'https://www.instagram.com/p/Dc8eoHHzxP_/', label: 'Instagram reel — travel guide' },
     { thumb: 'assets/images/ig-3.jpg', post: 'https://www.instagram.com/p/DbdGACpTbZv/', label: 'Instagram reel — travel tips' }
   ];
 
@@ -105,8 +105,28 @@
   function packPrice(cities) {
     return DATA ? DATA.pricing.packBase + DATA.pricing.packPerCity * cities : 0;
   }
+
+  /* Single source of truth for pack pricing:
+     uses the per-country packPrice override when present (vietnam 13, romania 7),
+     otherwise prices the displayed (moreSoonCities-filtered) city set so the
+     number shown on the shop/country page always equals the pay-page total. */
+  function packPriceFor(country) {
+    if (!DATA || !country) return 0;
+    if (country.packPrice != null) return country.packPrice;
+    var moreSoon = country.moreSoonCities || [];
+    var display = moreSoon.length > 0
+      ? country.cities.filter(function (c) { return moreSoon.indexOf(c) === -1; })
+      : country.cities;
+    return DATA.pricing.packBase + DATA.pricing.packPerCity * display.length;
+  }
   function mapPrice() { return DATA ? DATA.pricing.map : 0; }
   function guidePrice() { return DATA ? DATA.pricing.guide : 0; }
+
+  /* Per-city price: free maps are listed in country.freeCities */
+  function cityPrice(country, cityName) {
+    var free = (country.freeCities || []).indexOf(cityName) !== -1;
+    return free ? 0 : mapPrice();
+  }
 
   function countryById(id) {
     return DATA ? DATA.countries.filter(function (c) { return c.id === id; })[0] : null;
@@ -118,8 +138,8 @@
       type: 'map',
       countryId: country.id,
       name: cityName,
-      title: cityName + ' Map — ' + country.name,
-      price: mapPrice()
+      title: cityName + ' Map: ' + country.name,
+      price: cityPrice(country, cityName)
     };
   }
 
@@ -139,7 +159,7 @@
       countryId: country.id,
       name: country.name + ' Pack',
       title: country.name + ' Pack',
-      price: packPrice(country.cities.length)
+      price: packPriceFor(country)
     };
   }
 
@@ -308,8 +328,10 @@
     igTileHTML: igTileHTML,
     loadCatalog: loadCatalog,
     packPrice: packPrice,
+    packPriceFor: packPriceFor,
     mapPrice: mapPrice,
     guidePrice: guidePrice,
+    cityPrice: cityPrice,
     countryById: countryById,
     cityItem: cityItem,
     guideItem: guideItem,

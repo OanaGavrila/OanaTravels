@@ -5,86 +5,173 @@
       "name": "Vietnam",
       "flag": "🇻🇳",
       "emoji": "🛵",
-      "cities": ["Hue", "Ninh Binh", "Da Nang", "Ho Chi Minh", "Hanoi", "Hoi An"],
-      "moreSoonCities": ["Da Nang", "Ho Chi Minh", "Hanoi", "Hoi An"],
-      "guide": { "name": "Vietnam Travel Guide", "included": true }
+      "cities": [
+        "Hue",
+        "Ninh Binh",
+        "Da Nang",
+        "Ho Chi Minh",
+        "Hanoi",
+        "Hoi An"
+      ],
+      "moreSoonCities": [
+        "Da Nang",
+        "Ho Chi Minh",
+        "Hanoi",
+        "Hoi An"
+      ],
+      "freeCities": [
+        "Ninh Binh"
+      ],
+      "guide": {
+        "name": "Vietnam Travel Guide",
+        "included": true
+      },
+      "poster": "Vietnam"
     },
     {
       "id": "thailand",
       "name": "Thailand",
       "flag": "🇹🇭",
       "emoji": "🌴",
-      "cities": ["Bangkok", "Chiang Mai", "Ubon", "Phuket", "Krabi"],
-      "guide": { "name": "Thailand Travel Guide", "included": true }
+      "cities": [
+        "Bangkok",
+        "Northern Thailand",
+        "Ubon Ratchathani",
+        "Phuket",
+        "Krabi"
+      ],
+      "guide": {
+        "name": "Thailand Travel Guide",
+        "included": true
+      },
+      "poster": "Thailand"
     },
     {
       "id": "greece",
       "name": "Greece",
       "flag": "🇬🇷",
       "emoji": "🏛️",
-      "cities": ["Athens", "Aegina"],
-      "guide": { "name": "Greece Travel Guide", "included": true }
+      "cities": [
+        "Athens",
+        "Aegina"
+      ],
+      "guide": {
+        "name": "Greece Travel Guide",
+        "included": true
+      },
+      "poster": "Greece"
     },
     {
       "id": "uae",
       "name": "United Arab Emirates",
       "flag": "🇦🇪",
       "emoji": "🏙️",
-      "cities": ["Abu Dhabi"],
-      "guide": { "name": "UAE Travel Guide", "included": true }
+      "cities": [
+        "Abu Dhabi"
+      ],
+      "freeCities": [
+        "Abu Dhabi"
+      ],
+      "guide": {
+        "name": "UAE Travel Guide",
+        "included": true
+      },
+      "poster": "United Arab Emirates"
     },
     {
       "id": "indonesia",
       "name": "Indonesia",
       "flag": "🇮🇩",
       "emoji": "🌋",
-      "cities": ["Surabaya", "Bali"],
+      "cities": [
+        "Surabaya",
+        "Bali"
+      ],
       "moreSoon": true,
-      "guide": { "name": "Indonesia Travel Guide", "included": true }
+      "guide": {
+        "name": "Indonesia Travel Guide",
+        "included": true
+      },
+      "poster": "Indonesia"
     },
     {
       "id": "malaysia",
       "name": "Malaysia",
       "flag": "🇲🇾",
       "emoji": "🗼",
-      "cities": ["Kuala Lumpur"],
-      "guide": { "name": "Malaysia Travel Guide", "included": true }
+      "cities": [
+        "Kuala Lumpur"
+      ],
+      "guide": {
+        "name": "Malaysia Travel Guide",
+        "included": true
+      },
+      "poster": "Malaysia"
     },
     {
       "id": "philippines",
       "name": "Philippines",
       "flag": "🇵🇭",
       "emoji": "🏝️",
-      "cities": ["Coron", "El Nido"],
+      "cities": [
+        "Coron",
+        "El Nido"
+      ],
       "moreSoon": true,
-      "guide": { "name": "Philippines Travel Guide", "included": true }
+      "guide": {
+        "name": "Philippines Travel Guide",
+        "included": true
+      },
+      "poster": "Philippines"
     },
     {
       "id": "hongkong",
       "name": "Hong Kong",
       "flag": "🇭🇰",
       "emoji": "🌃",
-      "cities": ["Hong Kong"],
+      "cities": [
+        "Hong Kong"
+      ],
       "moreSoon": true,
-      "guide": { "name": "Hong Kong Travel Guide", "included": true }
+      "guide": {
+        "name": "Hong Kong Travel Guide",
+        "included": true
+      },
+      "poster": "Hong Kong"
     },
     {
       "id": "macau",
-      "name": "Macau",
+      "name": "Macao",
       "flag": "🇲🇴",
       "emoji": "🎲",
-      "cities": ["Macau"],
+      "cities": [
+        "Macao"
+      ],
       "moreSoon": true,
-      "guide": { "name": "Macau Travel Guide", "included": true }
+      "guide": {
+        "name": "Macao Travel Guide",
+        "included": true
+      },
+      "poster": "Macao"
     },
     {
       "id": "romania",
       "name": "Romania",
       "flag": "🇷🇴",
       "emoji": "🏰",
-      "cities": ["Bucharest", "Brasov"],
-      "moreSoonCities": ["Brasov"],
-      "guide": { "name": "Romania Travel Guide", "included": true }
+      "cities": [
+        "Bucharest",
+        "Brasov"
+      ],
+      "moreSoonCities": [
+        "Brasov"
+      ],
+      "guide": {
+        "name": "Romania Travel Guide",
+        "included": true
+      },
+      "poster": "Romania",
+      "packPrice": 7
     }
   ],
   "pricing": {

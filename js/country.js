@@ -10,6 +10,12 @@
 
   var O = window.Oana;
 
+  var FLAG_CODES = {
+    vietnam: 'vn', thailand: 'th', greece: 'gr', uae: 'ae',
+    indonesia: 'id', malaysia: 'my', philippines: 'ph',
+    hongkong: 'hk', macau: 'mo', romania: 'ro'
+  };
+
   function getCountryId() {
     var file = location.pathname.split('/').pop() || '';
     return file.replace('.html', '').toLowerCase();
@@ -38,30 +44,37 @@
   }
 
   function render(country, pricing) {
-    var packCost = pricing.packBase + pricing.packPerCity * country.cities.length;
     var mapCost = pricing.map;
     var guideCost = pricing.guide;
 
     var content = document.getElementById('countryContent');
     if (!content) return;
 
-    var gradClass = 'flag-' + country.id;
+    var flagClass = 'fi fi-' + (FLAG_CODES[country.id] || 'xx');
     var isMoreSoon = !!country.moreSoon;
     var moreSoonCities = country.moreSoonCities || [];
 
-    function card(image, badge, type, name, desc, price, actions, extraClass) {
+    function card(media, badge, type, name, desc, price, actions, extraClass) {
+      var mediaHTML;
+      if (media && media.type === 'poster') {
+        mediaHTML =
+          '    <span class="' + flagClass + ' fis product-card-flag"></span>' +
+          '    <img src="' + media.src + '" alt="' + name + '" loading="lazy" class="product-card-poster" onerror="this.remove()">';
+      } else {
+        mediaHTML = '    <span class="' + flagClass + ' fis product-card-flag"></span>';
+      }
       return (
         '<div class="product-card reveal' + (extraClass ? ' ' + extraClass : '') + '">' +
-        '  <div class="product-card-media ' + gradClass + '">' +
+        '  <div class="product-card-media">' +
+        mediaHTML +
         (badge ? '    <span class="product-card-badge">' + badge + '</span>' : '') +
         '    <span class="product-card-type">' + type + '</span>' +
-        '    <span class="pack-emoji">' + image + '</span>' +
         '  </div>' +
         '  <div class="product-card-body">' +
         '    <h3 class="product-card-name">' + name + '</h3>' +
         '    <p class="product-card-desc">' + desc + '</p>' +
         '    <div class="product-card-footer">' +
-        '      <span class="product-card-price">' + fmt(price) + '</span>' +
+        '      <span class="product-card-price">' + (typeof price === 'number' ? fmt(price) : price) + '</span>' +
         '      <div class="product-card-actions">' + actions + '</div>' +
         '    </div>' +
         '  </div>' +
@@ -75,7 +88,7 @@
     html +=
       '<section class="page-hero">' +
       '  <div class="container">' +
-      '    <span class="hero-eyebrow reveal">' + country.flag + ' ' + country.name + '</span>' +
+      '    <span class="hero-eyebrow reveal"><span class="' + flagClass + ' fis"></span> ' + country.name + '</span>' +
       '    <h1 class="page-hero-title reveal">' + country.name + '</h1>' +
       '  </div>' +
       '</section>';
@@ -114,13 +127,17 @@
     var displayCities = moreSoonCities.length > 0
       ? country.cities.filter(function (c) { return moreSoonCities.indexOf(c) === -1; })
       : country.cities;
-    var displayPackCost = pricing.packBase + pricing.packPerCity * displayCities.length;
+    var displayPackCost = O.packPriceFor(country);
+    var packPosterMedia = country.poster
+      ? { type: 'poster', src: 'assets/posters/' + country.name + '/' + country.poster + '.png' }
+      : null;
+
     html += card(
-      (country.emoji || '\uD83C\uDF0D'),
+      packPosterMedia,
       'Best Value',
       'Pack',
       country.name + ' Pack',
-      'Everything in one bundle \u2014 all ' + displayCities.length + ' city maps plus the country guide.',
+      'Everything in one bundle: all ' + displayCities.length + ' city maps plus the country guide.',
       displayPackCost,
       '<button class="btn btn-outline btn-sm" data-action="add-pack">Add</button>' +
       '<button class="btn btn-primary btn-sm" data-action="buy-pack">Buy</button>'
@@ -129,17 +146,23 @@
     /* City map cards — grey out moreSoonCities */
     country.cities.forEach(function (city) {
       var cityMoreSoon = moreSoonCities.indexOf(city) !== -1;
+      var isFree = !cityMoreSoon && (country.freeCities || []).indexOf(city) !== -1;
+      var widgetPrice = isFree ? 'FREE' : mapCost;
+      var badge = isFree ? 'Free' : (cityMoreSoon ? 'Coming Soon' : 'Map');
+      var desc = isFree
+        ? 'A free digital map of ' + city + ', ' + country.name + '. Top spots, hidden gems, and route-ready pins. Grab it and try it out.'
+        : 'A detailed, offline digital map of ' + city + ', ' + country.name + '. Top spots, hidden gems, and route-ready pins.';
       var actions = cityMoreSoon
         ? '<span class="more-soon-label">Coming Soon</span>'
         : '<button class="btn btn-outline btn-sm" data-action="add-map" data-city="' + city + '">Add</button>' +
-          '<button class="btn btn-primary btn-sm" data-action="buy-map" data-city="' + city + '">Buy</button>';
+          '<button class="btn btn-primary btn-sm" data-action="buy-map" data-city="' + city + '">' + (isFree ? 'Get' : 'Buy') + '</button>';
       html += card(
-        '\uD83D\uDDFA\uFE0F',
-        cityMoreSoon ? 'Coming Soon' : 'Map',
+        { type: 'poster', src: 'assets/posters/' + country.name + '/' + city + '.png' },
+        badge,
         'City',
         city + ' Map',
-        'A detailed, offline digital map of ' + city + ', ' + country.name + ' \u2014 top spots, hidden gems, and route-ready pins.',
-        mapCost,
+        desc,
+        widgetPrice,
         actions,
         cityMoreSoon ? 'product-card-more-soon' : ''
       );
@@ -147,11 +170,11 @@
 
     /* Guide card */
     html += card(
-      '\uD83D\uDCD6',
+      packPosterMedia,
       'Guide',
       'Guide',
       country.guide.name,
-      'An honest, detailed travel guide for ' + country.name + ' \u2014 where to go, what to eat, and local tips you won\'t find elsewhere.',
+      'An honest, detailed travel guide for ' + country.name + ': where to go, what to eat, and local tips you won\'t find elsewhere.',
       guideCost,
       '<button class="btn btn-outline btn-sm" data-action="add-guide">Add</button>' +
       '<button class="btn btn-primary btn-sm" data-action="buy-guide">Buy</button>'
@@ -168,7 +191,7 @@
   }
 
   function bindActions(country, pricing) {
-    var packCost = pricing.packBase + pricing.packPerCity * country.cities.length;
+    var packCost = O.packPriceFor(country);
 
     document.querySelectorAll('[data-action]').forEach(function (btn) {
       btn.addEventListener('click', function () {

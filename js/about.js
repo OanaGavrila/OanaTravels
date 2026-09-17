@@ -63,11 +63,12 @@
     var grid = document.getElementById('igTilesGrid');
     if (!grid) return;
     (O.IG_TILES || []).forEach(function (tile, i) {
-      var wrap = O.em('div', 'ig-tile reveal');
+      var wrap = O.em('div', 'insta-tile reveal');
       wrap.style.transitionDelay = (i * 80) + 'ms';
       wrap.innerHTML = O.igTileHTML(tile);
       grid.appendChild(wrap);
     });
+    O.initReveal();
   }
 
   function showMsg(msg, btn, text, isError) {

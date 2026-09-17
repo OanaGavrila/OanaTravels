@@ -9,8 +9,6 @@
   'use strict';
 
   /* ---------- Data ---------- */
-  var dataUrl = 'data/products.json';
-  var DATA = null;
 
   // Map positions in % (computed from real lat/lon on the amCharts mercator projection)
   var CITY_POSITIONS = {
@@ -21,8 +19,8 @@
     'Hoi An': { x: 77.3, y: 64.3 },
     'Ninh Binh': { x: 76.7, y: 62.3 },
     'Bangkok': { x: 75.1, y: 65.3 },
-    'Chiang Mai': { x: 74.7, y: 62.9 },
-    'Ubon': { x: 76.3, y: 64.6 },
+    'Northern Thailand': { x: 74.7, y: 62.9 },
+    'Ubon Ratchathani': { x: 76.3, y: 64.6 },
     'Phuket': { x: 74.5, y: 67.9 },
     'Krabi': { x: 74.6, y: 67.8 },
     'Athens': { x: 53.8, y: 53.2 },
@@ -34,35 +32,22 @@
     'Coron': { x: 80.6, y: 66.1 },
     'El Nido': { x: 80.3, y: 66.4 },
     'Hong Kong': { x: 78.9, y: 61.3 },
-    'Macau': { x: 78.7, y: 61.3 },
+    'Macao': { x: 78.7, y: 61.3 },
     'Bucharest': { x: 54.4, y: 49.4 },
     'Brasov': { x: 54.3, y: 48.6 }
   };
 
-  var EMOJIS = {
-    vietnam: '🛵',
-    thailand: '🌴',
-    greece: '🏛️',
-    uae: '🏙️',
-    indonesia: '🌋',
-    malaysia: '🗼',
-    philippines: '🏝️',
-    hongkong: '🌃',
-    macau: '🎰',
-    romania: '🏰'
-  };
-
-  var GRADIENTS = {
-    vietnam: 'flag-vietnam',
-    thailand: 'flag-thailand',
-    greece: 'flag-greece',
-    uae: 'flag-uae',
-    indonesia: 'flag-indonesia',
-    malaysia: 'flag-malaysia',
-    philippines: 'flag-philippines',
-    hongkong: 'flag-hongkong',
-    macau: 'flag-macau',
-    romania: 'flag-romania'
+  var FLAG_CODES = {
+    vietnam: 'vn',
+    thailand: 'th',
+    greece: 'gr',
+    uae: 'ae',
+    indonesia: 'id',
+    malaysia: 'my',
+    philippines: 'ph',
+    hongkong: 'hk',
+    macau: 'mo',
+    romania: 'ro'
   };
 
   // ISO country code -> catalog id + display name (for the interactive world map)
@@ -123,17 +108,6 @@
     if (className) node.className = className;
     if (text !== undefined) node.textContent = text;
     return node;
-  }
-
-  function loadData(cb) {
-    fetch(dataUrl)
-      .then(function (res) { return res.json(); })
-      .then(cb)
-      .catch(function () {
-        // Fallback if fetch fails on file:// — render empty-ish
-        els.mapCanvas.innerHTML = '';
-        console.warn('Could not load product data:', dataUrl);
-      });
   }
 
   /* ---------- Map dots ---------- */
@@ -392,9 +366,21 @@
       }
 
       var image = el('div', 'country-card-image');
-      var flag = el('div', 'flag-placeholder ' + (GRADIENTS[country.id] || ''));
-      flag.appendChild(el('span', 'pack-emoji', EMOJIS[country.id] || '🌍'));
+      var flag = el('div', 'flag-placeholder');
+      var flagIcon = el('span', 'fi fi-' + (FLAG_CODES[country.id] || 'xx'));
+      flag.appendChild(flagIcon);
       image.appendChild(flag);
+      if (country.poster) {
+        var poster = document.createElement('img');
+        poster.className = 'country-card-poster';
+        poster.src = 'assets/posters/' + country.name + '/' + country.poster + '.png';
+        poster.alt = country.name;
+        poster.loading = 'lazy';
+        poster.addEventListener('error', function () { poster.remove(); });
+        image.appendChild(poster);
+        var badge = el('span', 'country-card-flag fi fi-' + (FLAG_CODES[country.id] || 'xx') + ' fis');
+        image.appendChild(badge);
+      }
       card.appendChild(image);
 
       var body = el('div', 'country-card-body');
@@ -430,11 +416,20 @@
       var card = el('article', 'pack-card reveal');
       card.style.transitionDelay = (index * 60) + 'ms';
 
-      var image = el('div', 'pack-card-image ' + (GRADIENTS[pack.country] || ''));
+      var image = el('div', 'pack-card-image');
       var badge = el('span', 'pack-badge', 'Best Value');
-      var emoji = el('span', 'pack-emoji', EMOJIS[pack.country] || '🌍');
+      var flagIcon = el('span', 'fi fi-' + (FLAG_CODES[pack.countryId] || 'xx') + ' fis pack-card-flag');
+      image.appendChild(flagIcon);
+      if (pack.poster) {
+        var poster = document.createElement('img');
+        poster.className = 'pack-card-poster';
+        poster.src = 'assets/posters/' + pack.countryName + '/' + pack.poster + '.png';
+        poster.alt = pack.name;
+        poster.loading = 'lazy';
+        poster.addEventListener('error', function () { poster.remove(); });
+        image.appendChild(poster);
+      }
       image.appendChild(badge);
-      image.appendChild(emoji);
       card.appendChild(image);
 
       var body = el('div', 'pack-card-body');
@@ -515,8 +510,8 @@
     initWorldMap();
     initMapZoom();
 
-    loadData(function (data) {
-      DATA = data;
+    Oana.loadCatalog(function (data) {
+      if (!data) return;
 
       var available = data.countries.filter(function (c) { return hasAvailableCities(c); });
       var moreSoon = data.countries.filter(function (c) { return c.moreSoon; });
@@ -532,11 +527,13 @@
           id: c.id + '-pack',
           type: 'pack',
           countryId: c.id,
+          countryName: c.name,
+          poster: c.poster,
           name: c.name + ' Pack',
           title: c.name + ' Pack',
           includes: displayCities.join(', ') + ' + ' + c.guide.name,
           cities: displayCities,
-          price: data.pricing.packBase + data.pricing.packPerCity * displayCities.length
+          price: Oana.packPriceFor(c)
         };
       }));
 

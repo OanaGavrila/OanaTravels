@@ -28,11 +28,13 @@
     els.successEmail = document.getElementById('successEmail');
     els.successDetails = document.getElementById('successDetails');
 
-    els.tcAgree.addEventListener('change', function () {
-      disableCheckout(!hasCart());
-    });
+    els.btnFree = document.getElementById('btnFree');
+    els.secureNote = document.getElementById('secureNote');
+
+    els.tcAgree.addEventListener('change', refreshCheckout);
     els.btnPaypal.addEventListener('click', onPaypal);
     els.btnRevolut.addEventListener('click', onRevolut);
+    if (els.btnFree) els.btnFree.addEventListener('click', onFree);
 
     render();
   }
@@ -45,11 +47,11 @@
       els.cartEmpty.hidden = false;
       els.subtotal.textContent = fmt(0);
       els.total.textContent = fmt(0);
-      disableCheckout(true);
+      setFreeMode(false);
+      refreshCheckout();
       return;
     }
     els.cartEmpty.hidden = true;
-    disableCheckout(false);
 
     var total = 0;
     cart.forEach(function (item, idx) {
@@ -77,6 +79,8 @@
 
     els.subtotal.textContent = fmt(total);
     els.total.textContent = fmt(total);
+    setFreeMode(total === 0);
+    refreshCheckout();
   }
 
   function itemIcon(item) {
@@ -91,12 +95,36 @@
     return 'City Map';
   }
 
-  function disableCheckout(off) {
-    var disabled = off || !els.tcAgree.checked;
-    els.btnPaypal.disabled = disabled;
-    els.btnRevolut.disabled = disabled;
-    els.btnPaypal.classList.toggle('disabled', disabled);
-    els.btnRevolut.classList.toggle('disabled', disabled);
+  function refreshCheckout() {
+    var off = !hasCart() || !els.tcAgree.checked;
+    els.btnPaypal.disabled = off;
+    els.btnRevolut.disabled = off;
+    els.btnPaypal.classList.toggle('disabled', off);
+    els.btnRevolut.classList.toggle('disabled', off);
+    if (els.btnFree) {
+      els.btnFree.disabled = off;
+      els.btnFree.classList.toggle('disabled', off);
+    }
+  }
+
+  function setFreeMode(free) {
+    els.btnPaypal.hidden = free;
+    els.btnRevolut.hidden = free;
+    if (els.btnFree) els.btnFree.hidden = !free;
+    if (els.secureNote) els.secureNote.hidden = free;
+  }
+
+  function onFree() {
+    if (!els.tcAgree.checked) return;
+    if (!requireEmail()) return;
+    if (orderTotal() !== 0) return;
+    var order = {
+      email: els.email.value.trim(),
+      items: O.getCart(),
+      total: 0,
+      paid: { free: true }
+    };
+    completeOrder(order);
   }
 
   function hasCart() {
@@ -145,10 +173,12 @@
     if (!requireEmail()) return;
     var total = orderTotal();
     if (!O.REVOLUT_LINK) {
-      alert('Add your Revolut payment link in js/components.js (REVOLUT_LINK).');
+      alert('Add your Revolut username in js/components.js (REVOLUT_LINK).');
       return;
     }
-    openPayment(O.REVOLUT_LINK, 'After paying ' + fmt(total) + ' via Revolut, confirm on the next screen.');
+    var amountCents = Math.round(total * 100);
+    var url = 'https://revolut.me/' + O.REVOLUT_LINK + '?currency=EUR&amount=' + amountCents;
+    openPayment(url, 'After paying ' + fmt(total) + ' via Revolut, confirm on the next screen.');
   }
 
   function openPayment(url, note) {
@@ -192,14 +222,57 @@
     sheet.appendChild(linkGroup);
     sheet.appendChild(qrGroup);
 
-    // 3) Confirm payment done → trigger delivery
+    // 3) Confirm payment done → trigger delivery, guarded by a
+    //    countdown + explicit confirmation checkbox so the button
+    //    only appears after the payment has been completed.
+    var CONFIRM_DELAY = 45; // seconds before confirm becomes available
+    var remaining = CONFIRM_DELAY;
+
     var confirmGroup = O.em('div', 'pay-sheet-group pay-sheet-confirm');
-    var confirmBtn = O.em('button', 'btn btn-danger', "I've paid — send my maps");
+    confirmGroup.appendChild(O.em('div', 'pay-sheet-label', '3. Confirm your payment'));
+
+    var timerText = O.em('div', 'pay-sheet-timer');
+    timerText.setAttribute('role', 'status');
+    if (remaining > 0) timerText.textContent = 'Confirm available in ' + remaining + 's\u2026';
+    confirmGroup.appendChild(timerText);
+
+    var checkLabel = O.em('label', 'pay-sheet-check');
+    var checkBox = O.em('input');
+    checkBox.type = 'checkbox';
+    checkBox.disabled = true;
+    checkLabel.appendChild(checkBox);
+    checkLabel.appendChild(document.createTextNode(' I confirm I have completed the payment of ' + fmt(total)));
+    confirmGroup.appendChild(checkLabel);
+
+    var confirmBtn = O.em('button', 'btn btn-danger', "I've paid \u2014 send my maps");
+    confirmBtn.disabled = true;
+    confirmBtn.classList.add('disabled');
     confirmBtn.addEventListener('click', function () {
       if (window.__payConfirm) window.__payConfirm();
     });
     confirmGroup.appendChild(confirmBtn);
     sheet.appendChild(confirmGroup);
+
+    function refreshConfirmState() {
+      var ready = remaining <= 0 && checkBox.checked;
+      confirmBtn.disabled = !ready;
+      confirmBtn.classList.toggle('disabled', !ready);
+    }
+
+    window.__payTimer = setInterval(function () {
+      remaining -= 1;
+      if (remaining > 0) {
+        timerText.textContent = 'Confirm available in ' + remaining + 's\u2026';
+      } else {
+        timerText.textContent = 'Payment step complete \u2014 tick the box and confirm to get your maps.';
+        checkBox.disabled = false;
+        clearInterval(window.__payTimer);
+        window.__payTimer = null;
+        refreshConfirmState();
+      }
+    }, 1000);
+
+    checkBox.addEventListener('change', refreshConfirmState);
 
     // Keep it inside the modal strip at bottom
     var modal = document.getElementById('productModal');
@@ -233,6 +306,7 @@
   }
 
   function dismissPaySheet() {
+    if (window.__payTimer) { clearInterval(window.__payTimer); window.__payTimer = null; }
     if (window.__payWrap) {
       window.__payWrap.remove();
       window.__payWrap = null;
