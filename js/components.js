@@ -24,7 +24,9 @@
   //      add one line to PRODUCT_FILES.
   //   2. The order-log spreadsheet is already wired via
   //      SPREADSHEET_ID in Code.gs (columns: Pachet/Mail/Status/
-  //      Date send/Notes).
+  //      Date send/Notes/Paid?/Items JSON). "Paid?" is Oana's
+  //      signal column: fill it to confirm a payment, and the
+  //      scheduled scan sends that order's maps within 10 min.
   //   3. Paste the whole Code.gs into script.google.com → Deploy →
   //      New deployment → Web app → Execute as: Me → Who has
   //      access: Anyone. Copy the Web app URL below.
@@ -38,9 +40,9 @@
   // Each tile: { thumb: path to thumbnail image, post: full Instagram post URL, label: alt text }
   // Thumbnails pulled from Instagram; post links go to the real reels.
   var IG_TILES = [
-    { thumb: 'assets/images/ig-1.jpg', post: 'https://www.instagram.com/p/DLXkXI1M87u/', label: 'Instagram reel — map preview' },
-    { thumb: 'assets/images/ig-2.jpg', post: 'https://www.instagram.com/p/Dc8eoHHzxP_/', label: 'Instagram reel — travel guide' },
-    { thumb: 'assets/images/ig-3.jpg', post: 'https://www.instagram.com/p/DbdGACpTbZv/', label: 'Instagram reel — travel tips' }
+    { thumb: 'assets/images/ig-1.jpg', post: 'https://www.instagram.com/p/DLXkXI1M87u/', label: 'Instagram reel: map preview' },
+    { thumb: 'assets/images/ig-2.jpg', post: 'https://www.instagram.com/p/Dc8eoHHzxP_/', label: 'Instagram reel: travel guide' },
+    { thumb: 'assets/images/ig-3.jpg', post: 'https://www.instagram.com/p/DbdGACpTbZv/', label: 'Instagram reel: travel tips' }
   ];
 
   /* ---------- Cart (sessionStorage) ---------- */
@@ -49,7 +51,7 @@
   function getCart() {
     try {
       return JSON.parse(sessionStorage.getItem(CART_KEY)) || [];
-    } catch (e) {
+    } catch {
       return [];
     }
   }
@@ -130,6 +132,42 @@
 
   function countryById(id) {
     return DATA ? DATA.countries.filter(function (c) { return c.id === id; })[0] : null;
+  }
+
+  /* ---------- Poster resolution ----------
+     Rules:
+       - an explicit Drive URL in country.drivePoster always wins;
+       - "coming soon" countries have no local poster yet, so they show
+         only the flag until a Drive poster is added;
+       - otherwise use the local file in assets/posters/<Country>/<poster>.png */
+
+  /* Accepts a direct image URL, a Drive "/file/d/<ID>/view" link, or a
+     bare Drive file ID, and returns something usable in an <img src>. */
+  function driveImage(value) {
+    var s = (value === undefined || value === null) ? '' : String(value).trim();
+    if (!s) return '';
+    if (/^https?:\/\//i.test(s) && s.indexOf('drive.google.com') === -1) return s;
+    var m = s.match(/\/file\/d\/([^/?#]+)/) || s.match(/[?&]id=([^&]+)/);
+    var id = m ? m[1] : (/^[\w-]{20,}$/.test(s) ? s : '');
+    if (id) return 'https://drive.google.com/thumbnail?id=' + id + '&sz=w1200';
+    return s;
+  }
+
+  function countryPosterSrc(country) {
+    if (!country) return '';
+    if (country.drivePoster) return driveImage(country.drivePoster);
+    if (country.moreSoon) return '';
+    return country.poster
+      ? 'assets/posters/' + country.name + '/' + country.poster + '.png'
+      : '';
+  }
+
+  /* Same idea for a single city map inside a country. */
+  function cityPosterSrc(country, city) {
+    if (!country) return '';
+    var drive = country.driveCityPosters && country.driveCityPosters[city];
+    if (drive) return driveImage(drive);
+    return 'assets/posters/' + country.name + '/' + city + '.png';
   }
 
   /* ---------- Cart item builders ---------- */
@@ -306,7 +344,7 @@
   function igTileHTML(tile, className) {
     var cls = className || 'ig-video-tile';
     var img = tile.thumb;
-    var fallback = (tile.fallback || ((tile.label || 'Instagram preview') + ' — watch on @oanagavrila19').toUpperCase());
+    var fallback = (tile.fallback || ((tile.label || 'Instagram preview') + '. Watch on @oanagavrila19').toUpperCase());
     return (
       '<a href="' + tile.post + '" target="_blank" rel="noopener" class="' + cls + ' ig-tile-grad" aria-label="' + (tile.label || 'Instagram video') + '">' +
       '  <span class="ig-tile-text">' + fallback + '</span>' +
@@ -333,6 +371,8 @@
     guidePrice: guidePrice,
     cityPrice: cityPrice,
     countryById: countryById,
+    countryPosterSrc: countryPosterSrc,
+    cityPosterSrc: cityPosterSrc,
     cityItem: cityItem,
     guideItem: guideItem,
     packItem: packItem,

@@ -260,9 +260,11 @@ h1, h2, h3, h4, .hero-title, .section-title, .page-hero-title, .country-pack-nam
   align-items: center;
   justify-content: center;
   background:
+    url("../assets/images/home-page.png") center/cover no-repeat,
     linear-gradient(135deg, rgba(45,58,71,0.45), rgba(205,60,18,0.18)),
     linear-gradient(120deg, var(--surface-deep), #E8DFC9, var(--surface-bg));
-  background-size: 300% 300%;
+  background-size: cover, 300% 300%, 300% 300%;
+  background-attachment: fixed;
   animation: gradient-shift 14s ease infinite;
   overflow: hidden;
 }
@@ -1517,36 +1519,17 @@ textarea.field-input { resize: vertical; min-height: 120px; }
 .pay-sheet-label { font-size: 0.85rem; font-weight: 700; color: var(--text-soft); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
 .pay-sheet-open { width: 100%; }
 .pay-sheet-qr { width: 200px; height: 200px; border-radius: 12px; margin: 0 auto; display: block; box-shadow: var(--shadow); border: 1px solid rgba(205,60,18,0.15); }
-.pay-sheet-confirm { border-top: 2px dashed rgba(205,60,18,0.3); margin-top: 18px; }
-.pay-sheet-confirm .btn { width: 100%; }
-.pay-sheet-timer {
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: var(--accent);
-  margin: 4px 0 12px;
-  background: rgba(205, 60, 18, 0.08);
-  border-radius: 8px;
-  padding: 8px 12px;
-}
-.pay-sheet-check {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  text-align: left;
-  font-size: 0.85rem;
+.pay-sheet-cute {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(205, 60, 18, 0.06);
+  border: 1px dashed rgba(205, 60, 18, 0.28);
   color: var(--text-soft);
-  margin: 10px 0 14px;
-  line-height: 1.5;
-  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1.6;
 }
-.pay-sheet-check input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  margin-top: 1px;
-  flex: none;
-  accent-color: var(--accent);
-}
-.pay-sheet-check input[type="checkbox"]:disabled { cursor: not-allowed; }
+.pay-sheet-cute strong { color: var(--text); }
 
 /* ============================================================
    INSTAGRAM VIDEO TILES (thumbnail + play overlay → post link)

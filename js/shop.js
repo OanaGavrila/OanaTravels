@@ -47,10 +47,11 @@
       var media = O.em('div', 'shop-country-media');
       var flag = O.em('span', 'shop-country-media-flag fi fi-' + flagOf(country.id));
       media.appendChild(flag);
-      if (country.poster) {
+      var posterSrc = O.countryPosterSrc(country);
+      if (posterSrc) {
         var poster = document.createElement('img');
         poster.className = 'shop-country-media-poster';
-        poster.src = 'assets/posters/' + country.name + '/' + country.poster + '.png';
+        poster.src = posterSrc;
         poster.alt = country.name;
         poster.loading = 'lazy';
         poster.addEventListener('error', function () { poster.remove(); });

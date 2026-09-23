@@ -128,20 +128,23 @@
       ? country.cities.filter(function (c) { return moreSoonCities.indexOf(c) === -1; })
       : country.cities;
     var displayPackCost = O.packPriceFor(country);
-    var packPosterMedia = country.poster
-      ? { type: 'poster', src: 'assets/posters/' + country.name + '/' + country.poster + '.png' }
+    var packPosterSrc = O.countryPosterSrc(country);
+    var packPosterMedia = packPosterSrc
+      ? { type: 'poster', src: packPosterSrc }
       : null;
 
-    html += card(
-      packPosterMedia,
-      'Best Value',
-      'Pack',
-      country.name + ' Pack',
-      'Everything in one bundle: all ' + displayCities.length + ' city maps plus the country guide.',
-      displayPackCost,
-      '<button class="btn btn-outline btn-sm" data-action="add-pack">Add</button>' +
-      '<button class="btn btn-primary btn-sm" data-action="buy-pack">Buy</button>'
-    );
+    if (!country.noPack) {
+      html += card(
+        packPosterMedia,
+        'Best Value',
+        'Pack',
+        country.name + ' Pack',
+        'Everything in one bundle: all ' + displayCities.length + ' city maps plus the country guide.',
+        displayPackCost,
+        '<button class="btn btn-outline btn-sm" data-action="add-pack">Add</button>' +
+        '<button class="btn btn-primary btn-sm" data-action="buy-pack">Buy</button>'
+      );
+    }
 
     /* City map cards — grey out moreSoonCities */
     country.cities.forEach(function (city) {
@@ -156,8 +159,9 @@
         ? '<span class="more-soon-label">Coming Soon</span>'
         : '<button class="btn btn-outline btn-sm" data-action="add-map" data-city="' + city + '">Add</button>' +
           '<button class="btn btn-primary btn-sm" data-action="buy-map" data-city="' + city + '">' + (isFree ? 'Get' : 'Buy') + '</button>';
+      var cityPoster = O.cityPosterSrc(country, city);
       html += card(
-        { type: 'poster', src: 'assets/posters/' + country.name + '/' + city + '.png' },
+        cityPoster ? { type: 'poster', src: cityPoster } : null,
         badge,
         'City',
         city + ' Map',
@@ -187,12 +191,10 @@
 
     content.innerHTML = html;
     O.initReveal();
-    bindActions(country, pricing);
+    bindActions(country);
   }
 
-  function bindActions(country, pricing) {
-    var packCost = O.packPriceFor(country);
-
+  function bindActions(country) {
     document.querySelectorAll('[data-action]').forEach(function (btn) {
       btn.addEventListener('click', function () {
         var action = btn.dataset.action;

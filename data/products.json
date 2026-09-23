@@ -26,7 +26,9 @@
         "name": "Vietnam Travel Guide",
         "included": true
       },
-      "poster": "Vietnam"
+      "poster": "Vietnam",
+      "driveCityPosters": {},
+      "packPrice": 19
     },
     {
       "id": "thailand",
@@ -44,7 +46,8 @@
         "name": "Thailand Travel Guide",
         "included": true
       },
-      "poster": "Thailand"
+      "poster": "Thailand",
+      "packPrice": 19
     },
     {
       "id": "greece",
@@ -59,7 +62,8 @@
         "name": "Greece Travel Guide",
         "included": true
       },
-      "poster": "Greece"
+      "poster": "Greece",
+      "packPrice": 12
     },
     {
       "id": "uae",
@@ -72,6 +76,7 @@
       "freeCities": [
         "Abu Dhabi"
       ],
+      "noPack": true,
       "guide": {
         "name": "UAE Travel Guide",
         "included": true
@@ -84,15 +89,18 @@
       "flag": "🇮🇩",
       "emoji": "🌋",
       "cities": [
-        "Surabaya",
+        "East Java",
         "Bali"
       ],
-      "moreSoon": true,
+      "moreSoonCities": [
+        "Bali"
+      ],
       "guide": {
         "name": "Indonesia Travel Guide",
         "included": true
       },
-      "poster": "Indonesia"
+      "poster": "Indonesia",
+      "packPrice": 12
     },
     {
       "id": "malaysia",
@@ -106,7 +114,8 @@
         "name": "Malaysia Travel Guide",
         "included": true
       },
-      "poster": "Malaysia"
+      "poster": "Malaysia",
+      "packPrice": 9
     },
     {
       "id": "philippines",
@@ -171,7 +180,8 @@
         "included": true
       },
       "poster": "Romania",
-      "packPrice": 7
+      "packPrice": 12,
+      "driveCityPosters": {}
     }
   ],
   "pricing": {

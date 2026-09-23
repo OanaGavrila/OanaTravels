@@ -25,6 +25,7 @@
     els.btnPaypal = document.getElementById('btnPaypal');
     els.btnRevolut = document.getElementById('btnRevolut');
     els.successView = document.getElementById('successView');
+    els.successSub = document.getElementById('successSub');
     els.successEmail = document.getElementById('successEmail');
     els.successDetails = document.getElementById('successDetails');
 
@@ -165,7 +166,7 @@
       return;
     }
     var url = 'https://paypal.me/' + O.PAYPAL_ME + '/' + paypalAmountPath(total);
-    openPayment(url, 'After paying via PayPal, confirm on the next screen.');
+    openPayment(url);
   }
 
   function onRevolut() {
@@ -178,24 +179,31 @@
     }
     var amountCents = Math.round(total * 100);
     var url = 'https://revolut.me/' + O.REVOLUT_LINK + '?currency=EUR&amount=' + amountCents;
-    openPayment(url, 'After paying ' + fmt(total) + ' via Revolut, confirm on the next screen.');
+    openPayment(url);
   }
 
-  function openPayment(url, note) {
+  function openPayment(url) {
+    var total = orderTotal();
+    if (!confirm('Proceed to payment of ' + fmt(total) + '?\n\nChoose how to pay:')) return;
+
     var order = {
       email: els.email.value.trim(),
       items: O.getCart(),
-      total: orderTotal(),
+      total: total,
       paid: { paypal: url.indexOf('paypal.me') > -1 }
     };
-    sessionStorage.setItem('ot_pending_order', JSON.stringify(order));
 
-    showPaymentSheet(url, order.total, note);
+    // Log the order straight away. It lands in the sheet as "Pending"
+    // and Oana confirms the payment there; the scheduled scan sends the
+    // maps once she fills the "Paid?" column.
+    postOrder(order);
+    if (order.items.length) O.clearCart();
+
+    showPaymentSheet(url, order.total, order.email);
   }
 
   /* ---------- Payment sheet with link + QR ---------- */
-  function showPaymentSheet(url, total, note) {
-    if (!confirm('Proceed to payment of ' + fmt(total) + '?\n\nChoose how to pay:')) return;
+  function showPaymentSheet(url, total, email) {
     // Build a small inline payment panel with a link + scannable QR
     var sheet = O.em('div', 'pay-sheet');
     var amount = O.em('div', 'pay-sheet-amount', 'Pay ' + fmt(total));
@@ -211,7 +219,7 @@
 
     // 2) QR code (phone) — free QR API encodes the paypal.me amount URL
     var qrGroup = O.em('div', 'pay-sheet-group');
-    qrGroup.appendChild(O.em('div', 'pay-sheet-label', '2. On your phone — scan'));
+    qrGroup.appendChild(O.em('div', 'pay-sheet-label', '2. On your phone: scan'));
     var qrImg = O.em('img', 'pay-sheet-qr');
     var qrApi = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=';
     qrImg.src = qrApi + encodeURIComponent(url);
@@ -222,57 +230,12 @@
     sheet.appendChild(linkGroup);
     sheet.appendChild(qrGroup);
 
-    // 3) Confirm payment done → trigger delivery, guarded by a
-    //    countdown + explicit confirmation checkbox so the button
-    //    only appears after the payment has been completed.
-    var CONFIRM_DELAY = 45; // seconds before confirm becomes available
-    var remaining = CONFIRM_DELAY;
-
-    var confirmGroup = O.em('div', 'pay-sheet-group pay-sheet-confirm');
-    confirmGroup.appendChild(O.em('div', 'pay-sheet-label', '3. Confirm your payment'));
-
-    var timerText = O.em('div', 'pay-sheet-timer');
-    timerText.setAttribute('role', 'status');
-    if (remaining > 0) timerText.textContent = 'Confirm available in ' + remaining + 's\u2026';
-    confirmGroup.appendChild(timerText);
-
-    var checkLabel = O.em('label', 'pay-sheet-check');
-    var checkBox = O.em('input');
-    checkBox.type = 'checkbox';
-    checkBox.disabled = true;
-    checkLabel.appendChild(checkBox);
-    checkLabel.appendChild(document.createTextNode(' I confirm I have completed the payment of ' + fmt(total)));
-    confirmGroup.appendChild(checkLabel);
-
-    var confirmBtn = O.em('button', 'btn btn-danger', "I've paid \u2014 send my maps");
-    confirmBtn.disabled = true;
-    confirmBtn.classList.add('disabled');
-    confirmBtn.addEventListener('click', function () {
-      if (window.__payConfirm) window.__payConfirm();
-    });
-    confirmGroup.appendChild(confirmBtn);
-    sheet.appendChild(confirmGroup);
-
-    function refreshConfirmState() {
-      var ready = remaining <= 0 && checkBox.checked;
-      confirmBtn.disabled = !ready;
-      confirmBtn.classList.toggle('disabled', !ready);
-    }
-
-    window.__payTimer = setInterval(function () {
-      remaining -= 1;
-      if (remaining > 0) {
-        timerText.textContent = 'Confirm available in ' + remaining + 's\u2026';
-      } else {
-        timerText.textContent = 'Payment step complete \u2014 tick the box and confirm to get your maps.';
-        checkBox.disabled = false;
-        clearInterval(window.__payTimer);
-        window.__payTimer = null;
-        refreshConfirmState();
-      }
-    }, 1000);
-
-    checkBox.addEventListener('change', refreshConfirmState);
+    // Cute closing note — no confirmation step, I verify payments by hand.
+    var cute = O.em('div', 'pay-sheet-cute');
+    cute.appendChild(document.createTextNode('🌏 Once your payment comes through, I\u2019ll personally check it and hand-send your maps & guides to '));
+    cute.appendChild(O.em('strong', '', email));
+    cute.appendChild(document.createTextNode(' within 24 hours, usually much sooner. Thank you for supporting my small business! ❤️'));
+    sheet.appendChild(cute);
 
     // Keep it inside the modal strip at bottom
     var modal = document.getElementById('productModal');
@@ -295,18 +258,9 @@
     document.body.style.overflow = 'hidden';
     window.__payWrap = wrap;
     window.__payDismiss = dismissPaySheet;
-
-    // After they pay, call confirm
-    window.__payConfirm = function () {
-      var stored = sessionStorage.getItem('ot_pending_order');
-      if (!stored) { dismissPaySheet(); return; }
-      dismissPaySheet();
-      completeOrder(JSON.parse(stored));
-    };
   }
 
   function dismissPaySheet() {
-    if (window.__payTimer) { clearInterval(window.__payTimer); window.__payTimer = null; }
     if (window.__payWrap) {
       window.__payWrap.remove();
       window.__payWrap = null;
@@ -317,7 +271,8 @@
   }
 
   /* ---------- Delivery via Apps Script ---------- */
-  function completeOrder(order) {
+  function postOrder(order) {
+    if (!O.APPS_SCRIPT_URL) return;
     var body = {
       type: 'order',
       email: order.email,
@@ -331,19 +286,27 @@
       }),
       total: order.total
     };
+    fetch(O.APPS_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(body)
+    }).catch(function () { /* no-cors swallows response */ });
+  }
 
-    if (O.APPS_SCRIPT_URL) {
-      fetch(O.APPS_SCRIPT_URL, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(body)
-      }).catch(function () { /* no-cors swallows response */ });
-    }
+  function completeOrder(order) {
+    postOrder(order);
 
     if (order.items.length) O.clearCart();
 
-    els.successEmail.textContent = order.email;
+    if (els.successSub) {
+      els.successSub.innerHTML = (Number(order.total) <= 0)
+        ? 'Your maps are on their way to <strong id="successEmail"></strong> — enjoy, and thank you for being here! 🌏'
+        : 'Thank you for supporting my small business! ❤️ Every order means the world to me, so I\u2019ll hand-check yours and send your maps &amp; guides to <strong id="successEmail"></strong> within 24 hours, usually much sooner. 🌏';
+    }
+    var emailNode = document.getElementById('successEmail');
+    if (emailNode) emailNode.textContent = order.email;
+
     els.successDetails.innerHTML = '';
     order.items.forEach(function (it) {
       els.successDetails.appendChild(O.em('div', 'success-item', itemIcon(it) + ' ' + it.title));

@@ -26,7 +26,7 @@
     'Athens': { x: 53.8, y: 53.2 },
     'Aegina': { x: 54.0, y: 53.6 },
     'Abu Dhabi': { x: 62.3, y: 60.2 },
-    'Surabaya': { x: 78.5, y: 74.7 },
+    'East Java': { x: 78.5, y: 74.7 },
     'Bali': { x: 79.2, y: 75.3 },
     'Kuala Lumpur': { x: 75.4, y: 70.1 },
     'Coron': { x: 80.6, y: 66.1 },
@@ -58,6 +58,7 @@
     AE: { id: 'uae', name: 'United Arab Emirates' },
     ID: { id: 'indonesia', name: 'Indonesia' },
     MY: { id: 'malaysia', name: 'Malaysia' },
+    PH: { id: 'philippines', name: 'Philippines' },
     RO: { id: 'romania', name: 'Romania' }
   };
 
@@ -125,7 +126,7 @@
         dot.style.top = pos.y + '%';
         dot.dataset.city = city;
         dot.dataset.country = country.name;
-        dot.title = moreSoon ? city + ' — Coming soon' : city + ' — ' + country.name;
+        dot.title = moreSoon ? city + ' (Coming soon)' : city + ', ' + country.name;
         if (!moreSoon) {
           dot.addEventListener('click', function () {
             window.location.href = country.id + '.html';
@@ -170,7 +171,7 @@
           }
           path.setAttribute('role', 'link');
           path.setAttribute('tabindex', '0');
-          path.setAttribute('aria-label', info.name + ' — view shop');
+          path.setAttribute('aria-label', 'View shop: ' + info.name);
 
           var show = function () {
             tooltip.innerHTML = '<span class="map-tooltip-flag">' + flagEmoji(iso) + '</span>' + info.name;
@@ -353,11 +354,11 @@
       card.style.transitionDelay = (index * 60) + 'ms';
 
       if (moreSoon) {
-        card.setAttribute('aria-label', country.name + ' — coming soon');
+        card.setAttribute('aria-label', country.name + ', coming soon');
       } else {
         card.setAttribute('role', 'button');
         card.setAttribute('tabindex', '0');
-        card.setAttribute('aria-label', country.name + ' — see the cities we\'ve mapped');
+        card.setAttribute('aria-label', country.name + ', see the cities we\'ve mapped');
         var openCities = function () { showCities(country); };
         card.addEventListener('click', openCities);
         card.addEventListener('keydown', function (e) {
@@ -370,16 +371,17 @@
       var flagIcon = el('span', 'fi fi-' + (FLAG_CODES[country.id] || 'xx'));
       flag.appendChild(flagIcon);
       image.appendChild(flag);
-      if (country.poster) {
+      var posterSrc = Oana.countryPosterSrc(country);
+      if (posterSrc) {
         var poster = document.createElement('img');
         poster.className = 'country-card-poster';
-        poster.src = 'assets/posters/' + country.name + '/' + country.poster + '.png';
+        poster.src = posterSrc;
         poster.alt = country.name;
         poster.loading = 'lazy';
         poster.addEventListener('error', function () { poster.remove(); });
         image.appendChild(poster);
-        var badge = el('span', 'country-card-flag fi fi-' + (FLAG_CODES[country.id] || 'xx') + ' fis');
-        image.appendChild(badge);
+var flagBadge = el('span', 'country-card-flag fi fi-' + (FLAG_CODES[country.id] || 'xx') + ' fis');
+      image.appendChild(flagBadge);
       }
       card.appendChild(image);
 
@@ -387,8 +389,8 @@
       var nameRow = el('div', 'country-card-name');
       nameRow.textContent = country.name;
       if (moreSoon) {
-        var badge = el('span', 'more-soon-badge', 'More Soon');
-        nameRow.appendChild(badge);
+        var moreBadge = el('span', 'more-soon-badge', 'More Soon');
+        nameRow.appendChild(moreBadge);
       } else {
         var arrow = el('span', 'card-arrow', '→');
         nameRow.appendChild(arrow);
@@ -420,10 +422,10 @@
       var badge = el('span', 'pack-badge', 'Best Value');
       var flagIcon = el('span', 'fi fi-' + (FLAG_CODES[pack.countryId] || 'xx') + ' fis pack-card-flag');
       image.appendChild(flagIcon);
-      if (pack.poster) {
+      if (pack.posterSrc) {
         var poster = document.createElement('img');
         poster.className = 'pack-card-poster';
-        poster.src = 'assets/posters/' + pack.countryName + '/' + pack.poster + '.png';
+        poster.src = pack.posterSrc;
         poster.alt = pack.name;
         poster.loading = 'lazy';
         poster.addEventListener('error', function () { poster.remove(); });
@@ -477,9 +479,34 @@
     if (!els.newsletterForm) return;
     els.newsletterForm.addEventListener('submit', function (e) {
       e.preventDefault();
-      els.newsletterMsg.hidden = false;
+      var email = (els.newsletterEmail.value || '').trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        if (els.newsletterMsg) {
+          els.newsletterMsg.textContent = 'That email address doesn\u2019t look right.';
+          els.newsletterMsg.hidden = false;
+        }
+        return;
+      }
+
+      var payload = { type: 'newsletter', email: email };
+      if (Oana.APPS_SCRIPT_URL) {
+        fetch(Oana.APPS_SCRIPT_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload)
+        }).then(showNewsletterMsg).catch(showNewsletterMsg);
+      } else {
+        setTimeout(showNewsletterMsg, 600);
+      }
       els.newsletterForm.reset();
     });
+  }
+
+  function showNewsletterMsg() {
+    if (!els.newsletterMsg) return;
+    els.newsletterMsg.textContent = 'Thanks for subscribing! 🌏';
+    els.newsletterMsg.hidden = false;
   }
 
   /* ---------- Instagram preview tiles ---------- */
@@ -519,7 +546,7 @@
       renderDestinations(available, els.destinationsGrid);
       renderDestinations(moreSoon, els.moreSoonGrid);
 
-      renderPacks(available.map(function (c) {
+      renderPacks(available.filter(function (c) { return !c.noPack; }).map(function (c) {
         var displayCities = c.moreSoonCities
           ? c.cities.filter(function (city) { return c.moreSoonCities.indexOf(city) === -1; })
           : c.cities;
@@ -528,7 +555,7 @@
           type: 'pack',
           countryId: c.id,
           countryName: c.name,
-          poster: c.poster,
+          posterSrc: Oana.countryPosterSrc(c),
           name: c.name + ' Pack',
           title: c.name + ' Pack',
           includes: displayCities.join(', ') + ' + ' + c.guide.name,

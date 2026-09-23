@@ -79,7 +79,7 @@
   }
 
   function done(msg, submitBtn) {
-    showMsg(msg, submitBtn, 'Thanks for reaching out — I\'ll reply soon!', false);
+    showMsg(msg, submitBtn, 'Thanks for reaching out, I\'ll reply soon!', false);
   }
 
   if (document.readyState === 'loading') {
