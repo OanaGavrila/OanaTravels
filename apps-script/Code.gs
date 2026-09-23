@@ -1,16 +1,32 @@
 /**
- * OanaTravels — Order & Contact Automation
+ * OanaTravels — Order, Delivery & Newsletter Automation
  * ==========================================================
  * WHAT THIS DOES
  *   When your website checkout succeeds, it POSTs a JSON
- *   message here. This script then, for each product the buyer
- *   actually purchased:
- *     1. Adds the buyer's email as VIEWER of ONLY those Drive
- *        files (map / guide). Nobody else can open them.
- *     2. Emails the buyer the individual link for each product.
- *     3. Logs one row per order in your spreadsheet
- *        (Pachet | Mail | Status | Date send | Notes).
- *   It also handles the "contact" form from the About page.
+ *   message here.
+ *
+ *   PAID ORDERS (the normal flow)
+ *     1. The order is ONLY logged to your spreadsheet with
+ *        Status = "Pending" and the "Paid?" column empty.
+ *        No access is granted yet and no email is sent.
+ *     2. You receive the payment, then open the spreadsheet and
+ *        type the word "paid" (or PAID) into COLUMN 1 of that row,
+ *        overwriting the product names. Your note IS the
+ *        confirmation. (Filling the old "Paid?" column also works.)
+ *     3. A scheduled job (every 10 minutes) scans the sheet and,
+ *        for every confirmed row, adds the buyer's email as
+ *        VIEWER of ONLY those Drive files (map / guide / pack),
+ *        emails the buyer their per-product links, and marks the
+ *        row Status = "Completed" + fills "Date send".
+ *
+ *   FREE ORDERS (€0, the "Get My Free Maps" button)
+ *     Delivered instantly: access granted + email sent + logged
+ *     as "Completed" in the same pass.
+ *
+ *   CONTACT form from the About page.
+ *
+ *   NEWSLETTER form from the homepage: emails are logged to the
+ *   same spreadsheet in a "Newsletter" tab.
  *
  * SETUP (do this once, ~5 min)
  *   1. Keep every product file inside the "OanaTravels" Drive
@@ -21,7 +37,12 @@
  *
  *   2. The spreadsheet for order logging is already configured
  *      below (SPREADSHEET_ID). The first time you place an order
- *      it auto-creates the header row if missing.
+ *      it auto-creates the header row if missing. Columns:
+ *      Pachet | Mail | Status | Date send | Notes | Paid? | Items JSON
+ *      -> COLUMN 1 ("Pachet") is YOUR signal column: write the word
+ *         "paid" in it to confirm the payment (this overwrites the
+ *         product names — that's fine, delivery uses "Items JSON").
+ *         The next scan will deliver that order within 10 minutes.
  *
  *   3. Paste THIS FILE into a new Apps Script project:
  *      script.google.com -> New project -> paste -> save.
@@ -33,6 +54,16 @@
  *      -> Deploy -> copy the "Web app URL".
  *
  *   5. Put that URL into js/components.js as APPS_SCRIPT_URL.
+ *
+ *   6. After any change to this file, re-deploy:
+ *      Deploy -> Manage deployments -> Edit -> New version.
+ *
+ *   7. Add the delivery scheduler ONCE (run now, then never again):
+ *      in Apps Script open the "Triggers" tab (clock icon) ->
+ *      "Add Trigger" -> choose function
+ *      scanAndDeliverPendingOrders -> Time-driven ->
+ *      Every 10 minutes. (Or just run createTimerTrigger()
+ *      once from the editor — it does the same thing.)
  *
  * SECURITY NOTE
  *   "Anyone" access is required for your static site to reach
@@ -46,6 +77,13 @@
 /** CONFIG — fill these in */
 var SPREADSHEET_ID  = '1GJkqrrO9gCepmxvlHI9ZrJC3PdIJ1mp7DQUfktNuOlk'; // order log spreadsheet
 var CONTACT_EMAIL   = 'hi@oanatravels.com';
+
+/**
+ * PAID_WORD — the word Oana types into COLUMN 1 ("Pachet") of a
+ * Pending order row to confirm the payment. Matching is case-
+ * insensitive, so "paid", "Paid", or "PAID" all work.
+ */
+var PAID_WORD = 'paid';
 
 /**
  * THANKS_DOC_ID — the Google Doc with the thank-you emails.
@@ -91,32 +129,38 @@ var PRODUCT_FILES = {
       'Athens': '13DVcc4SwNP43dHkaDyHg9vEuUrBpV8k',
       'Aegina': '1qPfxq2enQOwl-Wddu67jRhhiShn64BA'   // Drive file is named "Egina"
     },
-    guide: ''
+    guide: '12lYXQw1p2WG1ReaEY-JXUHO4HDFt4AuUx4X7onoLq30'
+  },
+  'indonesia': {
+    maps: {
+      'East Java': '1dEZrkPkz1bSF0G_EDpto5aPuW7IrsE4'  // Drive file is a Google My Maps map
+    },
+    guide: '1jCMJKXlnOUoUvQ7AKv7_Gg19xBKt4ZQcFWLmyuSLMyA'
   },
   'malaysia': {
     maps: {
       'Kuala Lumpur': '1kkSC4l0dGCiXEgYO2HR88wHBGZOteuQ'
     },
-    guide: ''
+    guide: '1PR8a5dVEqtzMQ3FeFlZm6gOw7qJoxmmZhjp6LPRYCJw'
   },
   'romania': {
     maps: {
       'Bucharest': '1O-W3-8VmtwpP5UoFPUSW1H6NNKN4DrE'
     },
-    guide: ''
+    guide: '17nvMUnDm7jvXm3Mn72uyzYqUecrcIIzHhr1A_TXW2OM'
   },
   'uae': {
     maps: {
       'Abu Dhabi': '11GexcQMJpzCRoktdHYu9xIE14F3VLaA'
     },
-    guide: ''
+    guide: '1_cmMAsjsqCZZadZAzysvWbQA7a6lqap3sjpZxHgewsY'
   },
   'vietnam': {
     maps: {
       'Hue': '1vV9TPATEBGjgzyNIOMxHgHqOtH3lJ6g',
       'Ninh Binh': '1P6FqEw4t1gC0r_ixPyS0mxYjh5Q4U80'  // Drive file is named "Ninh Bình"
     },
-    guide: ''
+    guide: '1XsdxzHOFGCeJzpEF1uT76-cXnLL4E_GdctX5YpvZB1U'
   },
   'thailand': {
     maps: {
@@ -130,10 +174,64 @@ var PRODUCT_FILES = {
   }
 };
 
+/** A shared secret only you know — used to arm the delivery trigger
+ *  by visiting ?setup <SECRET>. Keep it secret.
+ */
+var SETUP_KEY = 'oana-2026';
+
+/** Return a JSON text output for the web app. Defined at the top on
+ *  purpose: some Apps Script environments fail to resolve helpers
+ *  declared further down the same file. */
+function json_(obj) {
+  return ContentService
+    .createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
 /**
- * Entry point — receives POSTs from the website.
+ * Entry point #1 — a GET to this web app URL can (re)arm the delivery
+ * trigger so you never have to open the Apps Script editor again:
+ *
+ *   <WEB_APP_URL>?setup=oana-2026
+ *
+ * Visiting that returns a small JSON saying the 10-min trigger is
+ * running (or was recreated). A missing/wrong key returns an error
+ * object instead.
+ */
+function doGet(e) {
+  if (!e || e.parameter.setup !== SETUP_KEY) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: false, error: 'Setup key missing or wrong' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  try {
+    ScriptApp.getProjectTriggers().forEach(function (t) {
+      if (t.getHandlerFunction() === 'scanAndDeliverPendingOrders') {
+        ScriptApp.deleteTrigger(t);
+      }
+    });
+    ScriptApp.newTrigger('scanAndDeliverPendingOrders')
+      .timeBased()
+      .everyMinutes(10)
+      .create();
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: true, message: 'Delivery trigger is active.' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: false, error: String(err) }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+/**
+ * Entry point #2 — receives POSTs from the website.
+ * Every incoming order also makes sure the 10-minute delivery trigger
+ * exists, so even if it was deleted/expired the next order re-arms it.
  */
 function doPost(e) {
+  ensureTimerTrigger_();
+
   var data = {};
   try {
     data = JSON.parse(e.postData.contents);
@@ -145,6 +243,10 @@ function doPost(e) {
     return handleContact(data);
   }
 
+  if (data.type === 'newsletter') {
+    return handleNewsletter(data);
+  }
+
   if (data.type === 'order') {
     return handleOrder(data);
   }
@@ -152,7 +254,11 @@ function doPost(e) {
   return json_({ ok: false, error: 'Unknown type' });
 }
 
-/** Handle an order: grant per-product access + email + log. */
+/**
+ * handleOrder — log the order, then EITHER deliver it right away
+ * (free €0 orders) OR leave it "Pending" until the "Paid?" signal
+ * column is filled in the spreadsheet.
+ */
 function handleOrder(data) {
   var email = string_(data.email).toLowerCase().trim();
   var total = string_(data.total);
@@ -162,19 +268,135 @@ function handleOrder(data) {
   }
 
   try {
-    var resolved = resolveItems_(parseItems_(data.items));
-    grantAccess_(resolved, email);
-    sendOrderEmail_(email, resolved, total);
-    logOrder_(email, resolved, total, 'Completed');
-    return json_({ ok: true });
+    var items = parseItems_(data.items);
+    var resolved = resolveItems_(items);
+    var totalNum = Number(data.total) || 0;
+
+    if (totalNum <= 0) {
+      // Free order → deliver instantly, exactly like before.
+      grantAccess_(resolved, email);
+      sendOrderEmail_(email, resolved, total);
+      logOrder_(email, resolved, total, items, 'Completed');
+      return json_({ ok: true, free: true });
+    }
+
+    // Paid order → park it until Oana confirms payment in the sheet.
+    logOrder_(email, resolved, total, items, 'Pending');
+    return json_({ ok: true, pending: true });
   } catch (err) {
     // Even if something fails, never lose contact with the buyer
     try {
-      var fallback = resolveItems_(parseItems_(data.items));
-      sendOrderEmail_(email, fallback, total);
-      logOrder_(email, fallback, total, 'Failed');
+      var fallbackItems = parseItems_(data.items);
+      var fallback = resolveItems_(fallbackItems);
+      logOrder_(email, fallback, total, fallbackItems, 'Failed');
     } catch (err2) {}
     return json_({ ok: true, warning: String(err) });
+  }
+}
+
+/**
+ * scanAndDeliverPendingOrders — run on a time trigger (every 10 min).
+ * Delivers every order whose "Paid?" signal column is filled in but
+ * whose Status is still "Pending". Marks each row Completed after.
+ */
+function scanAndDeliverPendingOrders() {
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(20000);
+  } catch (err) {
+    return json_({ ok: false, error: 'Could not acquire lock' });
+  }
+
+  var delivered = 0;
+  try {
+    var sheet = getOrdersSheet_();
+    if (sheet.getLastRow() < 1) return json_({ ok: true, delivered: 0 });
+
+    var col = {
+      pachet: 1, mail: 2, status: 3, dateSend: 4,
+      notes: 5, paid: 6, items: 7
+    };
+
+    var lastRow = sheet.getLastRow();
+    for (var r = lastRow; r >= 2; r--) {
+      var status = string_(sheet.getRange(r, col.status).getValue());
+      var pachet = string_(sheet.getRange(r, col.pachet).getValue()).trim();
+      var paidLegacy = string_(sheet.getRange(r, col.paid).getValue()).trim();
+      var email = string_(sheet.getRange(r, col.mail).getValue()).toLowerCase().trim();
+      var itemsJson = string_(sheet.getRange(r, col.items).getValue()).trim();
+
+      if (status !== 'Pending') continue;        // already handled
+      // Confirmed when Oana typed PAID_WORD into column 1 (Pachet),
+      // or when the older "Paid?" column is filled in.
+      var confirmed = (pachet.toLowerCase() === PAID_WORD.toLowerCase()) || paidLegacy !== '';
+      if (!confirmed) continue;                   // not confirmed by Oana yet
+      if (!isEmail_(email)) continue;             // malformed row
+
+      var items = [];
+      try {
+        items = JSON.parse(itemsJson);
+      } catch (err) {
+        sheet.getRange(r, col.status).setValue('Needs review');
+        continue;
+      }
+      if (!items.length) continue;
+
+      var resolved = resolveItems_(parseItems_(items));
+      grantAccess_(resolved, email);
+      var notes = string_(sheet.getRange(r, col.notes).getValue());
+      sendOrderEmail_(email, resolved, notes);
+      var date = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'M/d/yyyy');
+      sheet.getRange(r, col.status).setValue('Completed');
+      sheet.getRange(r, col.dateSend).setValue(date);
+      delivered++;
+    }
+  } catch (err) {
+    return json_({ ok: false, error: String(err) });
+  } finally {
+    lock.releaseLock();
+  }
+
+  return json_({ ok: true, delivered: delivered });
+}
+
+/**
+ * createTimerTrigger — run once from the Apps Script editor (or just
+ * visit the web app URL with ?setup=oana-2026) to add a recurring
+ * 10-minute trigger for scanAndDeliverPendingOrders(). Calling it again
+ * is safe — if the scanner trigger already exists, it is kept instead
+ * of being recreated. It also self-heals: any wrongly scheduled trigger
+ * calling createTimerTrigger is deleted on the next run.
+ */
+function createTimerTrigger() {
+  var ok = ensureTimerTrigger_();
+  return json_({ ok: ok, message: ok ? '10-minute delivery trigger created.' : 'Could not create the delivery trigger.' });
+}
+
+/**
+ * ensureTimerTrigger_ — idempotent: keeps an existing 10-minute
+ * delivery trigger if present, otherwise creates one. Also deletes any
+ * stray trigger that calls createTimerTrigger. Returns true on success.
+ */
+function ensureTimerTrigger_() {
+  try {
+    var handlers = ScriptApp.getProjectTriggers();
+    var hasDelivery = false;
+    handlers.forEach(function (t) {
+      var fn = t.getHandlerFunction();
+      if (fn === 'scanAndDeliverPendingOrders') {
+        hasDelivery = true;
+      } else if (fn === 'createTimerTrigger') {
+        ScriptApp.deleteTrigger(t);   // self-heal: remove stray hourly trigger
+      }
+    });
+    if (hasDelivery) return true;     // keep existing 10-min scanner
+    ScriptApp.newTrigger('scanAndDeliverPendingOrders')
+      .timeBased()
+      .everyMinutes(10)
+      .create();
+    return true;
+  } catch (err) {
+    return false;
   }
 }
 
@@ -258,7 +480,7 @@ function buildOrderEmailHtml_(email, resolved) {
 
   var hasComingSoon = resolved.some(function (r) { return !r.ids.length; });
   if (hasComingSoon) {
-    text += '<p style="color:#8a6d3d;background:#fcf8e3;border:1px solid #faebcc;padding:10px 12px;border-radius:8px;font-size:13px;margin:14px 0 0;">One or more of your products is still being prepared \u2014 you will get its link in a follow-up email when it is ready.</p>';
+    text += '<p style="color:#8a6d3d;background:#fcf8e3;border:1px solid #faebcc;padding:10px 12px;border-radius:8px;font-size:13px;margin:14px 0 0;">One or more of your products is still being prepared. You will get its link in a follow-up email when it is ready.</p>';
   }
 
   return htmlShell_(text, orderFooter_(email));
@@ -355,7 +577,7 @@ function linksBlock_(resolved) {
       if (entry) {
         Object.keys(entry.maps).forEach(function (city) {
           var fid = entry.maps[city];
-          if (fid) out.push('• ' + city + ' — ' + cname + '\n' + fileLink_(fid));
+          if (fid) out.push('• ' + city + ', ' + cname + '\n' + fileLink_(fid));
         });
         if (entry.guide) {
           out.push('• ' + cname + ' Travel Guide\n' + fileLink_(entry.guide));
@@ -364,7 +586,7 @@ function linksBlock_(resolved) {
       }
     }
     if (!r.ids.length) {
-      out.push('• ' + r.label + ' — coming soon (you will get the link by email when it is ready)');
+      out.push('• ' + r.label + ', coming soon (you will get the link by email when it is ready)');
     } else {
       r.ids.forEach(function (id) {
         out.push('• ' + r.label + '\n' + fileLink_(id));
@@ -384,7 +606,7 @@ function nameList_(names) {
 function fallbackBody_(email, resolved) {
   return 'Hi there,\n\n' +
     'Thank you for your order! Your links are below.\n' +
-    'Each link only works with this email (' + email + ') — open it while signed in to Google with the same address.\n\n' +
+    'Each link only works with this email (' + email + '). Open it while signed in to Google with the same address.\n\n' +
     'Your products:\n\n' +
     linksBlock_(resolved);
 }
@@ -414,9 +636,9 @@ function htmlShell_(content, footer) {
 /** Footer used on order delivery emails. */
 function orderFooter_(email) {
   return '' +
-    '<p style="margin:0 0 8px;"><strong>How to open your files:</strong> sign in on Google with <strong>' + htmlEsc_(email) + '</strong> \u2014 each link only works with the email used for your order.</p>' +
+    '<p style="margin:0 0 8px;"><strong>How to open your files:</strong> sign in on Google with <strong>' + htmlEsc_(email) + '</strong>. Each link only works with the email used for your order.</p>' +
     '<p style="margin:0 0 8px;">To make sure future emails from us don\u2019t end up in spam, please add <a href="mailto:hi@oanatravels.com" style="color:#cd3c12;">hi@oanatravels.com</a> to your contacts.</p>' +
-    '<p style="margin:0;">Happy travels,<br>Oana \u2014 OanaTravels</p>';
+    '<p style="margin:0;">Happy travels,<br>Oana from OanaTravels</p>';
 }
 
 /** One clickable product card in the HTML email. */
@@ -438,7 +660,7 @@ function linksHtmlBlock_(resolved) {
       if (entry) {
         Object.keys(entry.maps).forEach(function (city) {
           var fid = entry.maps[city];
-          if (fid) out.push(linkRow_(city + ' — ' + cname, fileLink_(fid)));
+          if (fid) out.push(linkRow_(city + ', ' + cname, fileLink_(fid)));
         });
         if (entry.guide) {
           out.push(linkRow_(cname + ' Travel Guide', fileLink_(entry.guide)));
@@ -447,7 +669,7 @@ function linksHtmlBlock_(resolved) {
       }
     }
     if (!r.ids.length) {
-      out.push('<p style="color:#8a6d3d;font-size:13px;margin:10px 0;">• ' + htmlEsc_(r.label) + ' — coming soon (you will get the link by email when it is ready)</p>');
+      out.push('<p style="color:#8a6d3d;font-size:13px;margin:10px 0;">• ' + htmlEsc_(r.label) + ', coming soon (you will get the link by email when it is ready)</p>');
     } else {
       r.ids.forEach(function (id) {
         out.push(linkRow_(r.label, fileLink_(id)));
@@ -461,7 +683,7 @@ function linksHtmlBlock_(resolved) {
 function fallbackBodyHtml_(email, resolved) {
   return htmlShell_(
     '<h2 style="color:#2d3a47;font-size:20px;margin:0 0 12px;">Thank you for your order!</h2>' +
-    '<p style="color:#4a5568;font-size:14px;line-height:1.7;margin:0;">Hi there,<br>Your links are below. Each link only works with this email (' + htmlEsc_(email) + ') \u2014 open it while signed in to Google with the same address.</p>' +
+    '<p style="color:#4a5568;font-size:14px;line-height:1.7;margin:0;">Hi there,<br>Your links are below. Each link only works with this email (' + htmlEsc_(email) + '). Open it while signed in to Google with the same address.</p>' +
     '<h3 style="color:#2d3a47;font-size:15px;margin:18px 0 6px;">Your products:</h3>' +
     linksHtmlBlock_(resolved),
     orderFooter_(email)
@@ -477,24 +699,78 @@ function htmlEsc_(s) {
     .replace(/"/g, '&quot;');
 }
 
-/** Log one row per order to the spreadsheet. */
-function logOrder_(email, resolved, total, status) {
+/**
+ * Log one row per order to the spreadsheet.
+ * Columns: Pachet | Mail | Status | Date send | Notes | Paid? | Items JSON
+ *   - "Paid?" stays empty here — Oana fills it by hand to confirm payment.
+ *   - "Date send" is only set once the order is actually delivered.
+ *   - "Items JSON" stores the raw payload so the delivery scan can
+ *     re-resolve the exact Drive files later.
+ */
+function logOrder_(email, resolved, total, items, status) {
   if (!SPREADSHEET_ID) return;
   try {
-    var sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheets()[0];
-    if (sheet.getLastRow() === 0) {
-      sheet.appendRow(['Pachet', 'Mail', 'Status', 'Date send', 'Notes']);
-    }
-    var pachet = resolved.map(function (r) { return r.label; }).join(', ');
-    var date = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'M/d/yyyy');
+    var sheet = getOrdersSheet_();
+    var pachet = resolved.map(logLabel_).join(', ');
+    var date = utilitiesDate_();
+    var dateSend = (status === 'Completed') ? date : '';
     var notes = total ? '€' + total : '';
     var failed = resolved
       .filter(function (r) { return r.failedIds && r.failedIds.length; })
       .map(function (r) { return r.label + ' (Drive access failed)'; })
       .join('; ');
-    if (failed) notes = (notes ? notes + ' — ' : '') + failed;
-    sheet.appendRow([pachet, email, status, date, notes]);
+    if (failed) notes = (notes ? notes + '; ' : '') + failed;
+    sheet.appendRow([pachet, email, status, dateSend, notes, '', JSON.stringify(items)]);
   } catch (err) { /* logging must never break delivery */ }
+}
+
+/**
+ * logLabel_ — the product name written to the order log.
+ * A pack is expanded so the sheet shows every file it includes
+ * (each map + the country guide), e.g.
+ *   "Malaysia Pack (Kuala Lumpur + Malaysia Travel Guide)".
+ */
+function logLabel_(r) {
+  if (r.item && r.item.type === 'pack') {
+    var entry = PRODUCT_FILES[r.item.countryId];
+    if (entry) {
+      var cname = COUNTRY_NAMES[r.item.countryId] || r.item.countryId;
+      var parts = Object.keys(entry.maps).filter(function (city) {
+        return entry.maps[city];
+      });
+      if (entry.guide) parts.push(cname + ' Travel Guide');
+      if (parts.length) return r.label + ' (' + parts.join(' + ') + ')';
+    }
+  }
+  return r.label;
+}
+
+/** The order-log sheet, creating + updating its header row if missing. */
+function getOrdersSheet_() {
+  var sheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheets()[0];
+
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(ORDER_HEADER_);
+    return sheet;
+  }
+
+  var first = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
+    .map(function (c) { return string_(c); });
+
+  if (first.length < ORDER_HEADER_.length) {
+    // Append the missing trailing columns; existing rows stay in place.
+    for (var i = first.length; i < ORDER_HEADER_.length; i++) {
+      sheet.getRange(1, i + 1).setValue(ORDER_HEADER_[i]);
+    }
+  }
+
+  return sheet;
+}
+
+var ORDER_HEADER_ = ['Pachet', 'Mail', 'Status', 'Date send', 'Notes', 'Paid?', 'Items JSON'];
+
+function utilitiesDate_() {
+  return Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'M/d/yyyy');
 }
 
 /** Handle the contact form from the About page. */
@@ -525,6 +801,41 @@ function handleContact(data) {
       htmlBody: html
     });
 
+    return json_({ ok: true });
+  } catch (err) {
+    return json_({ ok: false, error: String(err) });
+  }
+}
+
+/**
+ * handleNewsletter — log a homepage subscribe email to the
+ * "Newsletter" tab of the same spreadsheet as the orders.
+ */
+function handleNewsletter(data) {
+  try {
+    var email = string_(data.email).toLowerCase().trim();
+    if (!isEmail_(email)) {
+      return json_({ ok: false, error: 'Invalid email' });
+    }
+
+    var spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var sheet = spreadsheet.getSheetByName('Newsletter');
+    if (!sheet) {
+      sheet = spreadsheet.insertSheet('Newsletter');
+    }
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow(['Email', 'Date']);
+    }
+    var item = sheet.getRange(2, 1, Math.max(sheet.getLastRow() - 1, 1), 1)
+      .getValues();
+    var exists = item.some(function (row) {
+      return string_(row[0]).toLowerCase().trim() === email;
+    });
+    if (exists) {
+      return json_({ ok: true, duplicate: true });
+    }
+
+    sheet.appendRow([email, utilitiesDate_()]);
     return json_({ ok: true });
   } catch (err) {
     return json_({ ok: false, error: String(err) });
@@ -574,12 +885,6 @@ function resolveItems_(items) {
 
     return { item: it, label: it.title, ids: ids, undelivered: false };
   });
-}
-
-function json_(obj) {
-  return ContentService
-    .createTextOutput(JSON.stringify(obj))
-    .setMimeType(ContentService.MimeType.JSON);
 }
 
 function string_(v) {
