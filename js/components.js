@@ -139,7 +139,7 @@
        - an explicit Drive URL in country.drivePoster always wins;
        - "coming soon" countries have no local poster yet, so they show
          only the flag until a Drive poster is added;
-       - otherwise use the local file in assets/posters/<Country>/<poster>.png */
+        - otherwise use the local file in assets/posters/<Country>/<poster>.webp */
 
   /* Accepts a direct image URL, a Drive "/file/d/<ID>/view" link, or a
      bare Drive file ID, and returns something usable in an <img src>. */
@@ -158,7 +158,7 @@
     if (country.drivePoster) return driveImage(country.drivePoster);
     if (country.moreSoon) return '';
     return country.poster
-      ? 'assets/posters/' + country.name + '/' + country.poster + '.png'
+      ? 'assets/posters/' + country.name + '/' + country.poster + '.webp'
       : '';
   }
 
@@ -167,7 +167,7 @@
     if (!country) return '';
     var drive = country.driveCityPosters && country.driveCityPosters[city];
     if (drive) return driveImage(drive);
-    return 'assets/posters/' + country.name + '/' + city + '.png';
+    return 'assets/posters/' + country.name + '/' + city + '.webp';
   }
 
   /* ---------- Cart item builders ---------- */
@@ -224,7 +224,7 @@
       '<header class="navbar" id="navbar">' +
       '  <div class="container navbar-inner">' +
       '    <a href="index.html" class="brand">' +
-      '      <img src="assets/images/logo.png" alt="OanaTravels" class="brand-logo">' +
+      '      <img src="assets/images/logo.webp" alt="OanaTravels" class="brand-logo">' +
       '      <span class="brand-name">Oana<span class="accent">Travels</span></span>' +
       '    </a>' +
       '    <nav class="nav-links" id="navLinks">' +
@@ -249,7 +249,7 @@
       '  <div class="container footer-inner">' +
       '    <div class="footer-col footer-brand">' +
       '      <a href="index.html" class="brand brand-footer">' +
-      '        <img src="assets/images/logo.png" alt="OanaTravels" class="brand-logo brand-logo-footer">' +
+      '        <img src="assets/images/logo.webp" alt="OanaTravels" class="brand-logo brand-logo-footer">' +
       '        <span class="brand-name">Oana<span class="accent">Travels</span></span>' +
       '      </a>' +
       '      <p class="footer-about">Digital travel maps & guides crafted with love. Explore the world one map at a time.</p>' +

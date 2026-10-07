@@ -1,0 +1,11 @@
+{
+  "name": "oanatravels",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "optimize": "node tools/optimize-images.mjs"
+  },
+  "devDependencies": {
+    "sharp": "^0.33.5"
+  }
+}

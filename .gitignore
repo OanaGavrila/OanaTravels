@@ -1,2 +1,5 @@
 # Session artifact — not part of the website
 building-business-website-with-4-interactive-pages.json
+
+# Node tooling (image optimization)
+node_modules/
