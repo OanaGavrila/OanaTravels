@@ -78,6 +78,10 @@
 var SPREADSHEET_ID  = '1GJkqrrO9gCepmxvlHI9ZrJC3PdIJ1mp7DQUfktNuOlk'; // order log spreadsheet
 var CONTACT_EMAIL   = 'hi@oanatravels.com';
 
+/** The email that gets a notification EVERY time an order comes in
+ *  (paid or free). Change it anytime and re-deploy. */
+var NOTIFY_EMAIL = 'oanagavrila1902@gmail.com';
+
 /**
  * PAID_WORD — the word Oana types into COLUMN 1 ("Pachet") of a
  * Pending order row to confirm the payment. Matching is case-
@@ -277,11 +281,13 @@ function handleOrder(data) {
       grantAccess_(resolved, email);
       sendOrderEmail_(email, resolved, total);
       logOrder_(email, resolved, total, items, 'Completed');
+      sendOrderNotification_(email, resolved, total, 'FREE');
       return json_({ ok: true, free: true });
     }
 
     // Paid order → park it until Oana confirms payment in the sheet.
     logOrder_(email, resolved, total, items, 'Pending');
+    sendOrderNotification_(email, resolved, total, 'PAID');
     return json_({ ok: true, pending: true });
   } catch (err) {
     // Even if something fails, never lose contact with the buyer
@@ -289,6 +295,7 @@ function handleOrder(data) {
       var fallbackItems = parseItems_(data.items);
       var fallback = resolveItems_(fallbackItems);
       logOrder_(email, fallback, total, fallbackItems, 'Failed');
+      sendOrderNotification_(email, fallback, total, 'FAILED');
     } catch (err2) {}
     return json_({ ok: true, warning: String(err) });
   }
@@ -298,8 +305,12 @@ function handleOrder(data) {
  * scanAndDeliverPendingOrders — run on a time trigger (every 10 min).
  * Delivers every order whose "Paid?" signal column is filled in but
  * whose Status is still "Pending". Marks each row Completed after.
+ *
+ * Also sweeps away stray "createTimerTrigger" triggers. A trigger can't
+ * delete itself while it is running, so that cleanup happens here — the
+ * recurring scanner is always running and can safely delete those strays.
  */
-function scanAndDeliverPendingOrders() {
+function scanAndDeliverPendingOrders(e) {
   var lock = LockService.getScriptLock();
   try {
     lock.waitLock(20000);
@@ -309,6 +320,7 @@ function scanAndDeliverPendingOrders() {
 
   var delivered = 0;
   try {
+    deleteStrayTimerTriggers_(e && e.triggerUid);
     var sheet = getOrdersSheet_();
     if (sheet.getLastRow() < 1) return json_({ ok: true, delivered: 0 });
 
@@ -364,8 +376,9 @@ function scanAndDeliverPendingOrders() {
  * visit the web app URL with ?setup=oana-2026) to add a recurring
  * 10-minute trigger for scanAndDeliverPendingOrders(). Calling it again
  * is safe — if the scanner trigger already exists, it is kept instead
- * of being recreated. It also self-heals: any wrongly scheduled trigger
- * calling createTimerTrigger is deleted on the next run.
+ * of being recreated. Never deletes triggers here: a trigger cannot
+ * delete itself while it is running, so stray triggers are swept away
+ * by the recurring scanner.
  */
 function createTimerTrigger() {
   var ok = ensureTimerTrigger_();
@@ -374,8 +387,8 @@ function createTimerTrigger() {
 
 /**
  * ensureTimerTrigger_ — idempotent: keeps an existing 10-minute
- * delivery trigger if present, otherwise creates one. Also deletes any
- * stray trigger that calls createTimerTrigger. Returns true on success.
+ * delivery trigger if present, otherwise creates one. Returns true on
+ * success.
  */
 function ensureTimerTrigger_() {
   try {
@@ -385,8 +398,6 @@ function ensureTimerTrigger_() {
       var fn = t.getHandlerFunction();
       if (fn === 'scanAndDeliverPendingOrders') {
         hasDelivery = true;
-      } else if (fn === 'createTimerTrigger') {
-        ScriptApp.deleteTrigger(t);   // self-heal: remove stray hourly trigger
       }
     });
     if (hasDelivery) return true;     // keep existing 10-min scanner
@@ -398,6 +409,24 @@ function ensureTimerTrigger_() {
   } catch (err) {
     return false;
   }
+}
+
+/**
+ * deleteStrayTimerTriggers_ — removes every trigger that was wrongly
+ * scheduled to call createTimerTrigger. Called by the recurring scanner
+ * (never from createTimerTrigger itself), and skips the trigger that is
+ * currently executing so a running trigger is never deleted.
+ */
+function deleteStrayTimerTriggers_(currentUid) {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() !== 'createTimerTrigger') return;
+    if (currentUid === t.getId()) return;  // never delete a running trigger
+    try {
+      ScriptApp.deleteTrigger(t);
+    } catch (err) {
+      // not fatal; cleaned up on the next scan
+    }
+  });
 }
 
 /** Give the buyer VIEW access to exactly the files they bought. */
@@ -425,6 +454,58 @@ function sendOrderEmail_(email, resolved, total) {
     body: buildOrderEmail_(email, resolved),
     htmlBody: buildOrderEmailHtml_(email, resolved)
   });
+}
+
+/** Send YOU an email every time an order lands, paid or free.
+ *  Notification failures must never break the order itself. */
+function sendOrderNotification_(email, resolved, total, status) {
+  if (!NOTIFY_EMAIL) return;
+  try {
+    var price = (Number(total) <= 0) ? 'Free' : '€' + string_(total);
+    var items = resolved.map(logLabel_).join(', ');
+
+    var subj = status === 'PAID'
+      ? 'New paid order 💰 — OanaTravels'
+      : status === 'FREE'
+        ? 'New free order 🆓 — OanaTravels'
+        : 'Order needs attention ⚠️ — OanaTravels';
+
+    var title = status === 'PAID'
+      ? 'A paid order just landed'
+      : status === 'FREE'
+        ? 'A free order just landed'
+        : 'An order needs attention';
+
+    var note = status === 'PAID'
+      ? 'Confirm the payment in the spreadsheet (write "paid" in column 1 or fill "Paid?") and the maps will be delivered automatically within 10 minutes.'
+      : status === 'FREE'
+        ? 'The maps were delivered instantly to the buyer.'
+        : 'The order hit an error and was logged as "Failed" — check the spreadsheet.';
+
+    var body =
+      'New order for OanaTravels:\n\n' +
+      'Status: ' + status + '\n' +
+      'Buyer: ' + email + '\n' +
+      'Items: ' + items + '\n' +
+      'Total: ' + price + '\n\n' +
+      note;
+
+    MailApp.sendEmail({
+      to: NOTIFY_EMAIL,
+      subject: subj,
+      body: body,
+      htmlBody: htmlShell_(
+        '<h2 style="color:#2d3a47;font-size:20px;margin:0 0 6px;">' + htmlEsc_(title) + '</h2>' +
+        '<p style="color:#4a5568;font-size:14px;line-height:1.7;margin:0;">' + htmlEsc_(note) + '</p>' +
+        '<div style="margin:16px 0 4px;border:1px solid #f0e2d2;border-radius:10px;background:#fdf9f4;padding:14px 16px;">' +
+        '<p style="margin:0 0 6px;"><strong style="color:#2d3a47;">Buyer:</strong> <span style="color:#4a5568;">' + htmlEsc_(email) + '</span></p>' +
+        '<p style="margin:0 0 6px;"><strong style="color:#2d3a47;">Items:</strong> <span style="color:#4a5568;">' + htmlEsc_(items) + '</span></p>' +
+        '<p style="margin:0;"><strong style="color:#2d3a47;">Total:</strong> <span style="color:#4a5568;">' + htmlEsc_(price) + '</span></p>' +
+        '</div>',
+        '<p style="margin:0;">Sent automatically by the OanaTravels order script.</p>'
+      )
+    });
+  } catch (err) { /* never break the order over a notification */ }
 }
 
 function buildOrderEmail_(email, resolved) {

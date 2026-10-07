@@ -62,6 +62,26 @@
     RO: { id: 'romania', name: 'Romania' }
   };
 
+  var mapCatalogById = {};
+  var mapCountryNodes = [];
+
+  function getMapCountry(iso) {
+    var mapping = MAP_COUNTRIES[iso];
+    return mapping ? mapCatalogById[mapping.id] || null : null;
+  }
+
+  function setMapCatalog(countries) {
+    mapCatalogById = {};
+    (countries || []).forEach(function (country) {
+      mapCatalogById[country.id] = country;
+    });
+    mapCountryNodes.forEach(function (entry) {
+      var country = getMapCountry(entry.iso);
+      var name = country ? country.name : entry.name;
+      entry.path.setAttribute('aria-label', 'Zoom to ' + name);
+    });
+  }
+
   // Flag emoji from ISO 3166-1 alpha-2 (regional indicator symbols)
   function flagEmoji(iso) {
     if (!iso || iso.length !== 2) return '🌍';
@@ -138,13 +158,12 @@
     wrap.appendChild(fragment);
   }
 
-  /* ---------- Interactive world map ----------
-     Loads the SVG inline so each highlighted country is a real,
-     clickable element. Clicking a country opens the shop filtered
-     to that country's pack; hovering shows the name + flag. */
   function initWorldMap() {
     fetch('assets/images/world-map.svg')
-      .then(function (res) { return res.text(); })
+      .then(function (res) {
+        if (!res.ok) throw new Error('Unable to load world map');
+        return res.text();
+      })
       .then(function (svgText) {
         if (!els.mapCanvas) return;
         var wrap = document.getElementById('mapZoomWrap');
@@ -153,7 +172,6 @@
         var svg = wrap.querySelector('svg');
         if (!svg) return;
         svg.setAttribute('class', 'world-map-svg');
-        // Give the ocean a transparent fill so it sits on the CSS background
         svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
 
         var tooltip = document.createElement('div');
@@ -161,23 +179,38 @@
         tooltip.hidden = true;
         els.mapCanvas.appendChild(tooltip);
 
-        var available = svg.querySelectorAll('.land.available');
-        Array.prototype.forEach.call(available, function (path) {
-          var iso = path.getAttribute('id');
-          var info = MAP_COUNTRIES[iso];
-          if (!info) {
-            path.classList.remove('available');
-            return;
-          }
-          path.setAttribute('role', 'link');
+        var countries = svg.querySelectorAll('.land');
+        Array.prototype.forEach.call(countries, function (path) {
+          var iso = path.getAttribute('id') || '';
+          var mapping = MAP_COUNTRIES[iso];
+          var fallbackName = path.getAttribute('title') || mapping && mapping.name || iso || 'Country';
+          var entry = { path: path, iso: iso, name: fallbackName };
+          mapCountryNodes.push(entry);
+          path.classList.add('map-country');
+          path.setAttribute('role', 'button');
           path.setAttribute('tabindex', '0');
-          path.setAttribute('aria-label', 'View shop: ' + info.name);
+
+          var countryName = function () {
+            var country = getMapCountry(iso);
+            return country ? country.name : fallbackName;
+          };
+
+          path.setAttribute('aria-label', 'Zoom to ' + countryName());
 
           var show = function () {
-            tooltip.innerHTML = '<span class="map-tooltip-flag">' + flagEmoji(iso) + '</span>' + info.name;
+            tooltip.innerHTML = '<span class="map-tooltip-flag">' + flagEmoji(iso) + '</span>' + countryName();
             tooltip.hidden = false;
           };
           var hide = function () { tooltip.hidden = true; };
+          var activate = function () {
+            if (mapController && mapController.isClickSuppressed()) return;
+            if (mapController) mapController.zoomToElement(path);
+            showCities(getMapCountry(iso) || {
+              name: countryName(),
+              cities: [],
+              moreSoon: true
+            }, false);
+          };
 
           path.addEventListener('mouseenter', function (e) {
             show();
@@ -185,15 +218,16 @@
           });
           path.addEventListener('mousemove', moveTooltip);
           path.addEventListener('mouseleave', hide);
-          path.addEventListener('focus', show);
-          path.addEventListener('blur', hide);
-          path.addEventListener('click', function () {
-            window.location.href = info.id + '.html';
+          path.addEventListener('focus', function () {
+            show();
+            positionTooltip(path);
           });
+          path.addEventListener('blur', hide);
+          path.addEventListener('click', activate);
           path.addEventListener('keydown', function (e) {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              window.location.href = info.id + '.html';
+              activate();
             }
           });
         });
@@ -203,21 +237,26 @@
           tooltip.style.left = (e.clientX - rect.left) + 'px';
           tooltip.style.top = (e.clientY - rect.top) + 'px';
         }
+
+        function positionTooltip(path) {
+          var canvasRect = els.mapCanvas.getBoundingClientRect();
+          var pathRect = path.getBoundingClientRect();
+          tooltip.style.left = (pathRect.left + pathRect.width / 2 - canvasRect.left) + 'px';
+          tooltip.style.top = (pathRect.top + pathRect.height / 2 - canvasRect.top) + 'px';
+        }
       })
       .catch(function () {
-        // Fallback: keep non-interactive map (empty canvas styling from CSS)
         console.warn('Could not load interactive world map');
       });
   }
 
-  /* ---------- Map zoom + pan ---------- */
   var mapZoom = 1;
   var panX = 0;
   var panY = 0;
   var MIN_ZOOM = 1;
-  var MAX_ZOOM = 4;
-  var ZOOM_STEP = 0.4;
-  var PAN_LIMIT = 180;
+  var MAX_ZOOM = 12;
+  var ZOOM_STEP = 0.5;
+  var mapController = null;
 
   function initMapZoom() {
     var zoomIn = document.getElementById('mapZoomIn');
@@ -225,124 +264,368 @@
     var zoomReset = document.getElementById('mapZoomReset');
     var canvas = document.getElementById('mapCanvas');
     var wrap = document.getElementById('mapZoomWrap');
-    if (!canvas || !wrap) return;
+    if (!canvas || !wrap || !zoomIn || !zoomOut || !zoomReset) return;
+
+    var activePointers = [];
+    var dragState = null;
+    var pinchState = null;
+    var suppressClick = false;
+    var wheelFrame = null;
+    var wheelPending = null;
+    var requestFrame = window.requestAnimationFrame || function (callback) {
+      return window.setTimeout(callback, 16);
+    };
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
 
     function applyPan() {
-      var lim = PAN_LIMIT * mapZoom;
-      panX = Math.max(-lim, Math.min(lim, panX));
-      panY = Math.max(-lim, Math.min(lim, panY));
+      var width = wrap.clientWidth || canvas.clientWidth || 1;
+      var height = wrap.clientHeight || canvas.clientHeight || 1;
+      var limitX = Math.max(0, (width * mapZoom - width) / 2);
+      var limitY = Math.max(0, (height * mapZoom - height) / 2);
+      panX = clamp(panX, -limitX, limitX);
+      panY = clamp(panY, -limitY, limitY);
       wrap.style.transform = 'translate(' + panX + 'px, ' + panY + 'px) scale(' + mapZoom + ')';
     }
 
-    function applyZoom() {
+    function renderMap() {
       applyPan();
       wrap.style.setProperty('--map-dot-scale', (1 / mapZoom).toFixed(4));
       zoomOut.disabled = mapZoom <= MIN_ZOOM;
       zoomIn.disabled = mapZoom >= MAX_ZOOM;
     }
 
-    zoomIn.addEventListener('click', function () {
-      mapZoom = Math.min(MAX_ZOOM, +(mapZoom + ZOOM_STEP).toFixed(2));
-      applyZoom();
-    });
-    zoomOut.addEventListener('click', function () {
-      mapZoom = Math.max(MIN_ZOOM, +(mapZoom - ZOOM_STEP).toFixed(2));
-      applyZoom();
-    });
-    zoomReset.addEventListener('click', function () {
-      mapZoom = 1;
+    function setZoom(nextZoom, anchor, animate) {
+      var previousZoom = mapZoom;
+      if (!isFinite(nextZoom)) nextZoom = previousZoom;
+      var next = clamp(nextZoom, MIN_ZOOM, MAX_ZOOM);
+      if (anchor && previousZoom > 0 && next !== previousZoom) {
+        var canvasRect = canvas.getBoundingClientRect();
+        var pointX = (anchor.clientX !== undefined ? anchor.clientX : canvasRect.left + canvasRect.width / 2) - canvasRect.left;
+        var pointY = (anchor.clientY !== undefined ? anchor.clientY : canvasRect.top + canvasRect.height / 2) - canvasRect.top;
+        var ratio = next / previousZoom;
+        panX = pointX - (pointX - panX) * ratio;
+        panY = pointY - (pointY - panY) * ratio;
+      }
+      mapZoom = next;
+      wrap.style.transition = animate ? 'transform 0.25s ease' : 'none';
+      renderMap();
+    }
+
+    function resetMap() {
+      wheelPending = null;
+      mapZoom = MIN_ZOOM;
       panX = 0;
       panY = 0;
       wrap.style.transition = 'transform 0.3s ease';
-      applyZoom();
-      setTimeout(function () { wrap.style.transition = 'transform 0.2s ease'; }, 320);
-    });
+      renderMap();
+    }
 
-    // Zoom with Ctrl/⌘ + wheel (plus plain wheel is disabled to avoid hijack)
+    function getWheelDelta(e) {
+      var delta = e.deltaY;
+      if (e.deltaMode === 1) delta *= 16;
+      if (e.deltaMode === 2) delta *= canvas.clientHeight || 1;
+      return clamp(delta, -120, 120);
+    }
+
+    function scheduleWheelZoom() {
+      if (wheelFrame !== null) return;
+      wheelFrame = requestFrame(function () {
+        wheelFrame = null;
+        var next = wheelPending;
+        wheelPending = null;
+        if (!next) return;
+        setZoom(mapZoom * Math.exp(-next.delta * 0.0015), next, false);
+      });
+    }
+
     canvas.addEventListener('wheel', function (e) {
-      if (!e.ctrlKey && !e.metaKey) return;
       e.preventDefault();
-      mapZoom = +(mapZoom + (e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP)).toFixed(2);
-      mapZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, mapZoom));
-      applyPan();
-      zoomIn.disabled = mapZoom >= MAX_ZOOM;
-      zoomOut.disabled = mapZoom <= MIN_ZOOM;
+      var delta = getWheelDelta(e);
+      if (!delta) return;
+      wheelPending = {
+        delta: delta,
+        clientX: e.clientX,
+        clientY: e.clientY
+      };
+      scheduleWheelZoom();
     }, { passive: false });
 
-    // Pan: click-drag on the map, or arrow keys when focused
-    var dragging = false;
-    var startX = 0, startY = 0, startPanX = 0, startPanY = 0;
+    function findPointer(id) {
+      for (var i = 0; i < activePointers.length; i++) {
+        if (activePointers[i].id === id) return activePointers[i];
+      }
+      return null;
+    }
 
-    canvas.addEventListener('mousedown', function (e) {
-      dragging = true;
-      startX = e.clientX; startY = e.clientY;
-      startPanX = panX; startPanY = panY;
-      canvas.style.cursor = 'grabbing';
-      wrap.style.transition = 'none';
-    });
-    document.addEventListener('mousemove', function (e) {
-      if (!dragging) return;
-      panX = startPanX + (e.clientX - startX);
-      panY = startPanY + (e.clientY - startY);
-      applyPan();
-    });
-    document.addEventListener('mouseup', function () {
-      if (!dragging) return;
-      dragging = false;
+    function isControlTarget(target) {
+      return target && target.closest && target.closest('.map-zoom-controls');
+    }
+
+    function capturePointer(id) {
+      try {
+        canvas.setPointerCapture(id);
+      } catch (err) {}
+    }
+
+    function getPointerPair() {
+      return activePointers.length >= 2 ? [activePointers[0], activePointers[1]] : null;
+    }
+
+    function getDistance(pair) {
+      return Math.sqrt(
+        Math.pow(pair[0].x - pair[1].x, 2) +
+        Math.pow(pair[0].y - pair[1].y, 2)
+      );
+    }
+
+    function getMidpoint(pair) {
+      return {
+        clientX: (pair[0].x + pair[1].x) / 2,
+        clientY: (pair[0].y + pair[1].y) / 2
+      };
+    }
+
+    function endPointer(e) {
+      var pointer = findPointer(e.pointerId);
+      if (!pointer) return;
+      var wasPinching = !!pinchState;
+      activePointers.splice(activePointers.indexOf(pointer), 1);
+      if (activePointers.length === 1) {
+        var remaining = activePointers[0];
+        pinchState = null;
+        dragState = {
+          id: remaining.id,
+          startX: remaining.x,
+          startY: remaining.y,
+          panX: panX,
+          panY: panY,
+          moved: true
+        };
+        return;
+      }
+      if (activePointers.length > 1) return;
+      dragState = null;
+      pinchState = null;
       canvas.style.cursor = '';
       wrap.style.transition = 'transform 0.2s ease';
-    });
-    canvas.addEventListener('touchstart', function (e) {
-      if (e.touches.length === 1) {
-        dragging = true;
-        startX = e.touches[0].clientX; startY = e.touches[0].clientY;
-        startPanX = panX; startPanY = panY;
+      if (wasPinching || suppressClick) {
+        suppressClick = true;
+        window.setTimeout(function () { suppressClick = false; }, 300);
       }
-    }, { passive: true });
-    canvas.addEventListener('touchmove', function (e) {
-      if (!dragging || e.touches.length !== 1) return;
-      panX = startPanX + (e.touches[0].clientX - startX);
-      panY = startPanY + (e.touches[0].clientY - startY);
-      applyPan();
-    }, { passive: true });
-    canvas.addEventListener('touchend', function () { dragging = false; }, { passive: true });
+    }
 
-    // Arrow-key panning when the map canvas (or wrapper) is focused
+    canvas.addEventListener('pointerdown', function (e) {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (isControlTarget(e.target) || activePointers.length >= 2) return;
+      var pointer = { id: e.pointerId, x: e.clientX, y: e.clientY };
+      activePointers.push(pointer);
+      if (activePointers.length === 1) {
+        dragState = {
+          id: e.pointerId,
+          startX: e.clientX,
+          startY: e.clientY,
+          panX: panX,
+          panY: panY,
+          moved: false
+        };
+        suppressClick = false;
+        wrap.style.transition = 'none';
+        canvas.style.cursor = 'grabbing';
+      } else {
+        var pair = getPointerPair();
+        pinchState = {
+          distance: getDistance(pair),
+          x: getMidpoint(pair).clientX,
+          y: getMidpoint(pair).clientY
+        };
+        capturePointer(activePointers[0].id);
+        capturePointer(activePointers[1].id);
+        if (dragState) dragState.moved = true;
+        suppressClick = true;
+      }
+      if (e.cancelable && e.pointerType !== 'mouse') e.preventDefault();
+    });
+
+    canvas.addEventListener('pointermove', function (e) {
+      var pointer = findPointer(e.pointerId);
+      if (!pointer) return;
+      pointer.x = e.clientX;
+      pointer.y = e.clientY;
+      var pair = getPointerPair();
+      if (pair) {
+        if (!pinchState) return;
+        var distance = getDistance(pair);
+        var midpoint = getMidpoint(pair);
+        if (pinchState.distance > 0 && distance > 0) {
+          setZoom(mapZoom * distance / pinchState.distance, midpoint, false);
+        }
+        pinchState.distance = distance;
+        pinchState.x = midpoint.clientX;
+        pinchState.y = midpoint.clientY;
+        suppressClick = true;
+        if (e.cancelable) e.preventDefault();
+        return;
+      }
+      if (!dragState || dragState.id !== e.pointerId) return;
+      var dx = e.clientX - dragState.startX;
+      var dy = e.clientY - dragState.startY;
+      if (Math.abs(dx) + Math.abs(dy) > 4) {
+        dragState.moved = true;
+        suppressClick = true;
+        capturePointer(e.pointerId);
+      }
+      panX = dragState.panX + dx;
+      panY = dragState.panY + dy;
+      applyPan();
+      if (e.cancelable) e.preventDefault();
+    });
+
+    canvas.addEventListener('pointerup', endPointer);
+    canvas.addEventListener('pointercancel', endPointer);
+    canvas.addEventListener('click', function (e) {
+      if (!suppressClick || isControlTarget(e.target)) return;
+      e.preventDefault();
+      e.stopPropagation();
+    }, true);
+
+    zoomIn.addEventListener('click', function () {
+      wheelPending = null;
+      setZoom(mapZoom + ZOOM_STEP, null, true);
+    });
+    zoomOut.addEventListener('click', function () {
+      wheelPending = null;
+      setZoom(mapZoom - ZOOM_STEP, null, true);
+    });
+    zoomReset.addEventListener('click', resetMap);
+
     canvas.setAttribute('tabindex', '0');
     canvas.addEventListener('keydown', function (e) {
       var step = 40;
-      if (e.key === 'ArrowLeft') { panX += step; applyPan(); e.preventDefault(); }
-      else if (e.key === 'ArrowRight') { panX -= step; applyPan(); e.preventDefault(); }
-      else if (e.key === 'ArrowUp') { panY += step; applyPan(); e.preventDefault(); }
-      else if (e.key === 'ArrowDown') { panY -= step; applyPan(); e.preventDefault(); }
+      if (e.key === '+' || e.key === '=') {
+        setZoom(mapZoom + ZOOM_STEP, null, true);
+        e.preventDefault();
+      } else if (e.key === '-' || e.key === '_') {
+        setZoom(mapZoom - ZOOM_STEP, null, true);
+        e.preventDefault();
+      } else if (e.key === '0') {
+        resetMap();
+        e.preventDefault();
+      } else if (e.key === 'ArrowLeft') {
+        panX += step;
+        wrap.style.transition = 'transform 0.2s ease';
+        applyPan();
+        e.preventDefault();
+      } else if (e.key === 'ArrowRight') {
+        panX -= step;
+        wrap.style.transition = 'transform 0.2s ease';
+        applyPan();
+        e.preventDefault();
+      } else if (e.key === 'ArrowUp') {
+        panY += step;
+        wrap.style.transition = 'transform 0.2s ease';
+        applyPan();
+        e.preventDefault();
+      } else if (e.key === 'ArrowDown') {
+        panY -= step;
+        wrap.style.transition = 'transform 0.2s ease';
+        applyPan();
+        e.preventDefault();
+      }
     });
+
+    function zoomToElement(element) {
+      wheelPending = null;
+      var canvasRect = canvas.getBoundingClientRect();
+      var elementRect = element.getBoundingClientRect();
+      if (!elementRect.width || !elementRect.height) return;
+      wrap.style.transition = 'none';
+      canvasRect = canvas.getBoundingClientRect();
+      elementRect = element.getBoundingClientRect();
+      var localWidth = elementRect.width / mapZoom;
+      var localHeight = elementRect.height / mapZoom;
+      var padding = Math.min(48, Math.max(16, Math.min(canvas.clientWidth, canvas.clientHeight) * 0.08));
+      var fitZoom = Math.min(
+        Math.max(1, canvas.clientWidth - padding * 2) / localWidth,
+        Math.max(1, canvas.clientHeight - padding * 2) / localHeight
+      );
+      if (!isFinite(fitZoom) || fitZoom <= 0) fitZoom = MIN_ZOOM;
+      var targetZoom = clamp(fitZoom, MIN_ZOOM, MAX_ZOOM);
+      var centerX = elementRect.left + elementRect.width / 2;
+      var centerY = elementRect.top + elementRect.height / 2;
+      var localCenterX = (centerX - canvasRect.left - canvasRect.width / 2 - panX) / mapZoom;
+      var localCenterY = (centerY - canvasRect.top - canvasRect.height / 2 - panY) / mapZoom;
+      setZoom(targetZoom, { clientX: centerX, clientY: centerY }, true);
+      panX = -localCenterX * targetZoom;
+      panY = -localCenterY * targetZoom;
+      renderMap();
+    }
+
+    function handleResize() {
+      applyPan();
+    }
+
+    mapController = {
+      zoomToElement: zoomToElement,
+      isClickSuppressed: function () { return suppressClick; },
+      getZoom: function () { return mapZoom; }
+    };
+
+    if (typeof ResizeObserver === 'function') {
+      new ResizeObserver(handleResize).observe(canvas);
+    }
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
 
     wrap.style.transformOrigin = '50% 50%';
     wrap.style.transition = 'transform 0.2s ease';
-    applyPan();
-    zoomIn.disabled = mapZoom >= MAX_ZOOM;
-    zoomOut.disabled = mapZoom <= MIN_ZOOM;
+    renderMap();
   }
 
   /* ---------- Cities panel ---------- */
-  function showCities(country) {
-    els.citiesTitle.textContent = country.name;
-    els.citiesDesc.textContent = country.cities.length + ' mapped ' + (country.cities.length === 1 ? 'city' : 'cities') + ' available';
+  function showCities(country, shouldScroll) {
+    var data = country || {};
+    var cities = Array.isArray(data.cities) ? data.cities : [];
+    var name = data.name || 'Selected country';
+    var availableCities = cities.filter(function (city) {
+      return !isMoreSoon(data, city);
+    });
+    var comingSoonCount = cities.length - availableCities.length;
+    var cityWord = availableCities.length === 1 ? 'city' : 'cities';
+    els.citiesTitle.textContent = name;
+    if (!cities.length) {
+      els.citiesDesc.textContent = 'No cities are mapped for this country yet.';
+    } else if (data.moreSoon || availableCities.length === 0) {
+      els.citiesDesc.textContent = cities.length + ' ' + (cities.length === 1 ? 'city' : 'cities') + ' coming soon';
+    } else if (comingSoonCount) {
+      els.citiesDesc.textContent = availableCities.length + ' mapped ' + cityWord + ' available · ' + comingSoonCount + ' coming soon';
+    } else {
+      els.citiesDesc.textContent = cities.length + ' mapped ' + (cities.length === 1 ? 'city' : 'cities') + ' available';
+    }
     els.citiesList.innerHTML = '';
-    country.cities.forEach(function (city) {
-      var li = el('li', null, city);
-      li.setAttribute('role', 'button');
-      li.setAttribute('tabindex', '0');
-      li.title = 'View ' + city + ' in the shop';
-      var go = function () { window.location.href = 'shop.html'; };
-      li.addEventListener('click', go);
-      li.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); }
-      });
+    cities.forEach(function (city) {
+      var moreSoon = isMoreSoon(data, city);
+      var li = el('li');
+      if (moreSoon) {
+        var span = el('span', null, city);
+        span.setAttribute('aria-disabled', 'true');
+        span.title = city + ' (Coming soon)';
+        li.appendChild(span);
+      } else {
+        var btn = el('button', null, city);
+        btn.type = 'button';
+        btn.title = 'View ' + city + ' in the shop';
+        btn.addEventListener('click', function () { window.location.href = 'shop.html'; });
+        li.appendChild(btn);
+      }
       els.citiesList.appendChild(li);
     });
     els.citiesPanel.hidden = false;
-    els.citiesPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (shouldScroll !== false) {
+      els.citiesPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
   }
 
   /* ---------- Destinations grid ---------- */
@@ -355,15 +638,6 @@
 
       if (moreSoon) {
         card.setAttribute('aria-label', country.name + ', coming soon');
-      } else {
-        card.setAttribute('role', 'button');
-        card.setAttribute('tabindex', '0');
-        card.setAttribute('aria-label', country.name + ', see the cities we\'ve mapped');
-        var openCities = function () { showCities(country); };
-        card.addEventListener('click', openCities);
-        card.addEventListener('keydown', function (e) {
-          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openCities(); }
-        });
       }
 
       var image = el('div', 'country-card-image');
@@ -405,6 +679,14 @@ var flagBadge = el('span', 'country-card-flag fi fi-' + (FLAG_CODES[country.id] 
       });
       body.appendChild(chips);
       card.appendChild(body);
+
+      if (!moreSoon) {
+        var cardBtn = el('button', 'country-card-btn');
+        cardBtn.type = 'button';
+        cardBtn.setAttribute('aria-label', country.name + ', see the cities we\'ve mapped');
+        cardBtn.addEventListener('click', function () { showCities(country); });
+        card.appendChild(cardBtn);
+      }
 
       fragment.appendChild(card);
     });
@@ -534,11 +816,12 @@ var flagBadge = el('span', 'country-card-flag fi fi-' + (FLAG_CODES[country.id] 
     initNewsletter();
     initInstaGrid();
     initCitiesClose();
-    initWorldMap();
     initMapZoom();
+    initWorldMap();
 
     Oana.loadCatalog(function (data) {
       if (!data) return;
+      setMapCatalog(data.countries);
 
       var available = data.countries.filter(function (c) { return hasAvailableCities(c); });
       var moreSoon = data.countries.filter(function (c) { return c.moreSoon; });

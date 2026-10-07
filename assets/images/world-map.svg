@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <!-- Oana Travel world map. Derived from amCharts worldLow (CC BY 4.0). -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1008.3 648.907" width="100%" height="100%" preserveAspectRatio="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1008.3 648.907" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
   <style>
     .land { fill: #E2D9C2; fill-opacity: 1; stroke: #C9BC9C; stroke-opacity: 1; stroke-width: 0.6; }
     .land.available { fill: #CD3C12; fill-opacity: 1; stroke: #A83010; stroke-opacity: 1; stroke-width: 0.7; }
