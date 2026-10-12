@@ -251,44 +251,82 @@ h1, h2, h3, h4, .hero-title, .section-title, .page-hero-title, .country-pack-nam
 }
 
 /* ============================================================
-   HERO — full-screen panorama with paper-blend bottom
+   HERO — layered transparent PNG scene (center + left + right)
    ============================================================ */
 .hero {
+  /* Start values — tweak here. Layer widths scale the scene in vw so
+     the side art stays flush with the screen edges on every device. */
+  --hero-bg: var(--surface-white);
+  --hero-h: 100svh;
+  --layer-w: 100vw;        /* desktop (>= 1024px): all layers 100vw */
+  --layer-w-center: 100vw;
   position: relative;
-  min-height: 100vh;
-  min-height: 100svh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 130px 0 90px;
-  background: url('../assets/images/hero-pano.jpg') center / cover no-repeat #1d2733;
+  width: 100%;
+  min-height: var(--hero-h);
   overflow: hidden;
+  background: var(--hero-bg);
+  display: flex;
+  align-items: flex-start;    /* text sits in the free area at the top */
+  justify-content: center;
+  padding-top: 140px;         /* clears the fixed navbar */
 }
-.hero-overlay {
+
+.layer-center,
+.layer-left,
+.layer-right {
   position: absolute;
-  inset: 0;
-  z-index: 2;
-  background:
-    linear-gradient(180deg, rgba(31,40,50,0.9) 0%, rgba(31,40,50,0.5) 30%, rgba(31,40,50,0.42) 50%, rgba(31,40,50,0.62) 72%, #EFE9D5 96%),
-    radial-gradient(ellipse 90% 55% at 50% 48%, rgba(0, 0, 0, 0.45), transparent 72%);
+  bottom: 0;
+  height: auto;
   pointer-events: none;
+  user-select: none;
 }
+.layer-center { left: 50%; transform: translateX(-50%); width: var(--layer-w-center); z-index: 1; }
+.layer-left   { left: 0;   width: var(--layer-w); z-index: 2; }
+.layer-right  { right: 0;  width: var(--layer-w); z-index: 2; }
+
+/* Tablet: left/right widen and overlap the center more */
+@media (max-width: 1023px) {
+  .hero { --layer-w: 130vw; --layer-w-center: 120vw; }
+}
+/* Mobile: decorative sides overlap the center the most */
+@media (max-width: 767px) {
+  .hero { --layer-w: 170vw; --layer-w-center: 190vw; }
+}
+
+/* ---------- Load animation (safe fallbacks keep layers in place) ---------- */
+@keyframes hero-left-in {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+@keyframes hero-right-in {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+@keyframes hero-center-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(40px); }
+  to   { opacity: 1; transform: translateX(-50%); }
+}
+.layer-left   { animation: hero-left-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.layer-right  { animation: hero-right-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.layer-center { animation: hero-center-in 0.8s ease-out both; }
+
+/* ---------- Content: ink-on-light, anchored to the top free area ---------- */
 .hero-content {
   position: relative;
-  z-index: 4;
+  z-index: 3;
+  max-width: 760px;
   text-align: center;
-  max-width: 800px;
-  color: #fff;
-  text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6), 0 8px 40px rgba(0, 0, 0, 0.45);
+  padding: 0 24px;
+  color: var(--ink);
 }
 .hero-eyebrow {
   display: inline-block;
-  background: rgba(255,255,255,0.14);
-  border: 1px solid rgba(255,255,255,0.35);
-  color: #ffd9cc;
+  background: var(--surface-card);
+  border: 1px solid rgba(45, 58, 71, 0.12);
+  color: var(--accent);
   padding: 8px 18px;
   border-radius: var(--r-circular);
-  backdrop-filter: blur(6px);
+  box-shadow: var(--shadow);
   font-size: 0.8rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -299,18 +337,18 @@ h1, h2, h3, h4, .hero-title, .section-title, .page-hero-title, .country-pack-nam
   vertical-align: middle;
   margin-right: 6px;
   border-radius: 2px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 .hero-title {
   font-size: clamp(2.4rem, 6vw, 4.4rem);
   font-weight: 800;
   letter-spacing: -0.03em;
   line-height: 1.1;
-  color: #fff;
+  color: var(--ink);
   margin-bottom: 20px;
 }
 .hero-highlight {
-  color: #fff;
+  color: inherit;
   position: relative;
   display: inline-block;
 }
@@ -328,36 +366,18 @@ h1, h2, h3, h4, .hero-title, .section-title, .page-hero-title, .country-pack-nam
 .hero-subtitle {
   font-size: clamp(1rem, 2vw, 1.25rem);
   font-weight: 300;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--ink-soft);
   max-width: 560px;
   margin: 0 auto 36px;
 }
 .hero-cta { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
-
-.scroll-hint {
-  position: absolute;
-  bottom: 26px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 26px;
-  height: 42px;
-  border: 2px solid rgba(45, 58, 71, 0.5);
-  border-radius: 14px;
-  display: flex;
-  justify-content: center;
-  padding-top: 8px;
-  z-index: 5;
+.hero-cta .btn-ghost {
+  color: var(--ink);
+  border-color: rgba(45, 58, 71, 0.4);
 }
-.scroll-dot {
-  width: 5px;
-  height: 5px;
-  background: #CD3C12;
-  border-radius: 50%;
-  animation: scroll-bounce 1.8s ease-in-out infinite;
-}
-@keyframes scroll-bounce {
-  0%, 20%, 100% { transform: translateY(0); opacity: 1; }
-  50% { transform: translateY(14px); opacity: 0.4; }
+.hero-cta .btn-ghost:hover {
+  background: rgba(45, 58, 71, 0.06);
+  border-color: var(--ink);
 }
 
 /* ============================================================
@@ -1083,7 +1103,7 @@ section { padding: 90px 0; }
    ============================================================ */
 @media (max-width: 900px) {
   .footer-inner { grid-template-columns: 1fr 1fr; gap: 32px; }
-  .hero { padding: 120px 0 80px; }
+  .hero { padding-top: 132px; }
 }
 @media (max-width: 768px) {
   section { padding: 60px 0; }
@@ -1109,10 +1129,10 @@ section { padding: 90px 0; }
   .newsletter-row { flex-direction: column; border-radius: var(--radius); }
   .newsletter-input { text-align: center; }
 }
-/* Mobile: hero text keeps breathing room as the screen narrows */
+/* Mobile: keep hero text clear of the fixed navbar as the screen narrows */
 @media (max-width: 640px) {
-  .hero { padding: 105px 0 90px; }
-  .hero-content { padding: 0 4px; }
+  .hero { padding-top: 132px; }
+  .hero-title { font-size: 2.2rem; }
 }
 @media (max-width: 480px) {
   .footer-inner { grid-template-columns: 1fr; }
