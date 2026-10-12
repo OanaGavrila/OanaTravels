@@ -256,7 +256,7 @@ h1, h2, h3, h4, .hero-title, .section-title, .page-hero-title, .country-pack-nam
 .hero {
   /* Start values — tweak here. Layer widths scale the scene in vw so
      the side art stays flush with the screen edges on every device. */
-  --hero-bg: var(--surface-white);
+  --hero-bg: var(--surface-deep);
   --hero-h: 100svh;
   --layer-w: 100vw;        /* desktop (>= 1024px): all layers 100vw */
   --layer-w-center: 100vw;
@@ -264,7 +264,12 @@ h1, h2, h3, h4, .hero-title, .section-title, .page-hero-title, .country-pack-nam
   width: 100%;
   min-height: var(--hero-h);
   overflow: hidden;
-  background: var(--hero-bg);
+  /* Site-wide warm/orange animated gradient behind the transparent PNGs */
+  background:
+    linear-gradient(135deg, rgba(45,58,71,0.45), rgba(205,60,18,0.18)),
+    linear-gradient(120deg, var(--surface-deep), #E8DFC9, var(--surface-bg));
+  background-size: 300% 300%;
+  animation: gradient-shift 14s ease infinite;
   display: flex;
   align-items: flex-start;    /* text sits in the free area at the top */
   justify-content: center;
