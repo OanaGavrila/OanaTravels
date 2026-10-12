@@ -251,7 +251,7 @@ h1, h2, h3, h4, .hero-title, .section-title, .page-hero-title, .country-pack-nam
 }
 
 /* ============================================================
-   HERO — full-screen, three overlapping images
+   HERO — full-screen panorama with paper-blend bottom
    ============================================================ */
 .hero {
   position: relative;
@@ -261,7 +261,7 @@ h1, h2, h3, h4, .hero-title, .section-title, .page-hero-title, .country-pack-nam
   align-items: center;
   justify-content: center;
   padding: 130px 0 90px;
-  background: linear-gradient(160deg, #2D3A47, #1d2733 60%, #3a2a24);
+  background: url('../assets/images/hero-pano.jpg') center / cover no-repeat #1d2733;
   overflow: hidden;
 }
 .hero-overlay {
@@ -269,7 +269,7 @@ h1, h2, h3, h4, .hero-title, .section-title, .page-hero-title, .country-pack-nam
   inset: 0;
   z-index: 2;
   background:
-    linear-gradient(180deg, rgba(31,40,50,0.9) 0%, rgba(31,40,50,0.5) 30%, rgba(31,40,50,0.42) 50%, rgba(31,40,50,0.62) 72%, rgba(31,40,50,0.92) 100%),
+    linear-gradient(180deg, rgba(31,40,50,0.9) 0%, rgba(31,40,50,0.5) 30%, rgba(31,40,50,0.42) 50%, rgba(31,40,50,0.62) 72%, #EFE9D5 96%),
     radial-gradient(ellipse 90% 55% at 50% 48%, rgba(0, 0, 0, 0.45), transparent 72%);
   pointer-events: none;
 }
@@ -277,7 +277,7 @@ h1, h2, h3, h4, .hero-title, .section-title, .page-hero-title, .country-pack-nam
   position: relative;
   z-index: 4;
   text-align: center;
-  max-width: 780px;
+  max-width: 800px;
   color: #fff;
   text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6), 0 8px 40px rgba(0, 0, 0, 0.45);
 }
@@ -334,46 +334,6 @@ h1, h2, h3, h4, .hero-title, .section-title, .page-hero-title, .country-pack-nam
 }
 .hero-cta { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
 
-/* ---------- Pinned full-screen center + side overlaps ---------- */
-.hero-collage {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-}
-.hero-pic {
-  display: block;
-  font-size: 0;
-  transition:
-    width 0.55s cubic-bezier(0.25, 0.8, 0.25, 1),
-    transform 0.55s cubic-bezier(0.25, 0.8, 0.25, 1),
-    filter 0.35s ease;
-  will-change: width, transform;
-}
-.hero-pic--center {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  z-index: 1;
-}
-.hero-pic--left,
-.hero-pic--right {
-  position: absolute;
-  top: 0;
-  height: 100%;
-  width: clamp(260px, 36vw, 620px);
-  object-fit: cover;
-  z-index: 3;
-  filter: drop-shadow(0 14px 30px rgba(0, 0, 0, 0.45));
-}
-.hero-pic--left  { left: 0; transform: none; }
-.hero-pic--right { right: 0; transform: none; }
-.hero-pic--left:hover,
-.hero-pic--right:hover,
-.hero-pic--center:hover { transform: scale(1.01); filter: drop-shadow(0 20px 40px rgba(0, 0, 0, 0.55)); }
-.hero-pic--center:hover { filter: none; }
-
 .scroll-hint {
   position: absolute;
   bottom: 26px;
@@ -381,7 +341,7 @@ h1, h2, h3, h4, .hero-title, .section-title, .page-hero-title, .country-pack-nam
   transform: translateX(-50%);
   width: 26px;
   height: 42px;
-  border: 2px solid rgba(255, 255, 255, 0.6);
+  border: 2px solid rgba(45, 58, 71, 0.5);
   border-radius: 14px;
   display: flex;
   justify-content: center;
@@ -391,7 +351,7 @@ h1, h2, h3, h4, .hero-title, .section-title, .page-hero-title, .country-pack-nam
 .scroll-dot {
   width: 5px;
   height: 5px;
-  background: #fff;
+  background: #CD3C12;
   border-radius: 50%;
   animation: scroll-bounce 1.8s ease-in-out infinite;
 }
@@ -1149,25 +1109,15 @@ section { padding: 90px 0; }
   .newsletter-row { flex-direction: column; border-radius: var(--radius); }
   .newsletter-input { text-align: center; }
 }
-/* Mobile: sides overlap the pinned center more as the screen narrows */
+/* Mobile: hero text keeps breathing room as the screen narrows */
 @media (max-width: 640px) {
   .hero { padding: 105px 0 90px; }
   .hero-content { padding: 0 4px; }
-  .hero-pic--left,
-  .hero-pic--right {
-    width: clamp(200px, 32vw, 340px);
-  }
-  .hero-pic--left:hover,
-  .hero-pic--right:hover { transform: scale(1.01); }
 }
 @media (max-width: 480px) {
   .footer-inner { grid-template-columns: 1fr; }
   .hero-cta { flex-direction: column; }
   .hero-cta .btn { width: 100%; }
-  .hero-pic--left,
-  .hero-pic--right {
-    width: clamp(180px, 30vw, 240px);
-  }
 }
 
 /* ============================================================
