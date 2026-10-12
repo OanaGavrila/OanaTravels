@@ -1862,4 +1862,9 @@ textarea.field-input { resize: vertical; min-height: 120px; }
   * { animation: none !important; transition: none !important; }
   html { scroll-behavior: auto; }
   .reveal, .destinations-grid .country-card, .packs-grid .pack-card { opacity: 1; transform: none; }
+  /* Disable hero entrance animations while keeping layers visible in their final positions */
+  .layer-left, .layer-right, .layer-center { animation: none !important; }
+  .layer-left { transform: translateX(0); }
+  .layer-right { transform: translateX(0); }
+  .layer-center { transform: translateX(-50%); opacity: 1; }
 }
