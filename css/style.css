@@ -875,6 +875,78 @@ section { padding: 90px 0; }
 .btn-outline:hover { background: var(--accent); color: #fff; }
 
 /* ============================================================
+   FREE SAMPLES
+   ============================================================ */
+.samples { background: var(--bg-deep); }
+.samples-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 28px;
+}
+.sample-card {
+  background: var(--surface);
+  border-radius: var(--r-feature);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  transition: var(--transition);
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(205,60,18,0.08);
+}
+.sample-card:hover {
+  transform: translateY(-8px);
+  box-shadow: var(--shadow-lg);
+}
+.sample-card-image {
+  aspect-ratio: 16 / 9;
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--cream);
+}
+.sample-card-image > .sample-card-flag {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  background-size: cover !important;
+  background-position: center;
+}
+.sample-card-image .sample-card-poster {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.sample-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.64rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 4px 10px;
+  border-radius: var(--r-control);
+}
+.sample-card-body { padding: 22px; display: flex; flex-direction: column; flex: 1; }
+.sample-card-title { font-weight: 800; font-size: 1.2rem; margin-bottom: 6px; }
+.sample-card-desc { font-size: 0.85rem; color: var(--text-soft); margin-bottom: 16px; line-height: 1.5; }
+.sample-card-footer {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.sample-price { font-size: 1.3rem; font-weight: 800; color: var(--accent); }
+
+/* ============================================================
    SHOP COUNTRY GRID
    ============================================================ */
 .country-grid {
@@ -1058,6 +1130,7 @@ section { padding: 90px 0; }
 .newsletter-form .btn { background: #fff; color: var(--accent); border-radius: var(--r-control); }
 .newsletter-form .btn:hover { background: var(--surface-bg); }
 .newsletter-msg { margin-top: 20px; font-weight: 600; }
+.newsletter-msg.form-msg-error { color: #ffe08a; }
 
 /* ============================================================
    FOOTER
@@ -1100,8 +1173,8 @@ section { padding: 90px 0; }
 .reveal.visible { opacity: 1; transform: translateY(0); }
 
 /* Staggered cards */
-.destinations-grid .country-card, .packs-grid .pack-card, .product-grid .product-card { opacity: 0; transform: translateY(40px); transition: opacity 0.6s ease, transform 0.6s ease; }
-.destinations-grid .country-card.visible, .packs-grid .pack-card.visible, .product-grid .product-card.visible { opacity: 1; transform: translateY(0); }
+.destinations-grid .country-card, .packs-grid .pack-card, .samples-grid .sample-card, .product-grid .product-card { opacity: 0; transform: translateY(40px); transition: opacity 0.6s ease, transform 0.6s ease; }
+.destinations-grid .country-card.visible, .packs-grid .pack-card.visible, .samples-grid .sample-card.visible, .product-grid .product-card.visible { opacity: 1; transform: translateY(0); }
 
 /* ============================================================
    RESPONSIVE
@@ -1482,6 +1555,8 @@ section { padding: 90px 0; }
   margin: 0 auto 20px;
 }
 .success-card h2 { font-size: 1.6rem; font-weight: 800; margin-bottom: 10px; }
+.success-card.success-error .success-icon { background: #d9534f; }
+.success-card.success-error h2 { color: #a13a33; }
 .success-sub { color: var(--text-soft); margin-bottom: 10px; }
 .success-note { font-size: 0.85rem; color: var(--text-soft); margin-bottom: 20px; }
 .success-details { text-align: left; background: var(--surface-bg); border-radius: var(--r-panel); padding: 16px; margin: 0 0 20px; border: 1px solid rgba(45,58,71,0.1); }
@@ -1590,6 +1665,27 @@ textarea.field-input { resize: vertical; min-height: 120px; }
   line-height: 1.6;
 }
 .pay-sheet-cute strong { color: var(--text); }
+
+/* Warning shown in the payment sheet when the order could not be logged */
+.pay-sheet-warn {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #fdf3f2;
+  border: 1px solid #f0c4bf;
+  color: #a13a33;
+  font-size: 0.86rem;
+  line-height: 1.55;
+  text-align: left;
+}
+.pay-sheet-warn a { color: #a13a33; font-weight: 700; text-decoration: underline; }
+.pay-sheet-warn-items {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed #f0c4bf;
+  font-size: 0.84rem;
+  color: #8a4b46;
+}
 
 /* ============================================================
    INSTAGRAM VIDEO TILES (thumbnail + play overlay → post link)
@@ -1861,7 +1957,7 @@ textarea.field-input { resize: vertical; min-height: 120px; }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
   html { scroll-behavior: auto; }
-  .reveal, .destinations-grid .country-card, .packs-grid .pack-card { opacity: 1; transform: none; }
+  .reveal, .destinations-grid .country-card, .packs-grid .pack-card, .samples-grid .sample-card { opacity: 1; transform: none; }
   /* Disable hero entrance animations while keeping layers visible in their final positions */
   .layer-left, .layer-right, .layer-center { animation: none !important; }
   .layer-left { transform: translateX(0); }

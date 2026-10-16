@@ -28,6 +28,10 @@
     els.successSub = document.getElementById('successSub');
     els.successEmail = document.getElementById('successEmail');
     els.successDetails = document.getElementById('successDetails');
+    els.successCard = els.successView ? els.successView.querySelector('.success-card') : null;
+    els.successTitle = els.successView ? els.successView.querySelector('.success-card h2') : null;
+    els.successIcon = els.successView ? els.successView.querySelector('.success-icon') : null;
+    els.successTitleDefault = els.successTitle ? els.successTitle.textContent : '';
 
     els.btnFree = document.getElementById('btnFree');
     els.secureNote = document.getElementById('secureNote');
@@ -196,14 +200,14 @@
     // Log the order straight away. It lands in the sheet as "Pending"
     // and Oana confirms the payment there; the scheduled scan sends the
     // maps once she fills the "Paid?" column.
-    postOrder(order);
+    var log = postOrder(order);
     if (order.items.length) O.clearCart();
 
-    showPaymentSheet(url, order.total, order.email);
+    showPaymentSheet(url, order.total, order.email, log, order.items);
   }
 
   /* ---------- Payment sheet with link + QR ---------- */
-  function showPaymentSheet(url, total, email) {
+  function showPaymentSheet(url, total, email, log, items) {
     // Build a small inline payment panel with a link + scannable QR
     var sheet = O.em('div', 'pay-sheet');
     var amount = O.em('div', 'pay-sheet-amount', 'Pay ' + fmt(total));
@@ -236,6 +240,27 @@
     cute.appendChild(O.em('strong', '', email));
     cute.appendChild(document.createTextNode(' within 24 hours, usually much sooner. Thank you for supporting my small business! ❤️'));
     sheet.appendChild(cute);
+
+    // If the order could not be logged, say so plainly instead of letting
+    // the buyer believe it went through. Payment still works; the order
+    // just needs to reach Oana by email.
+    if (log && typeof log.then === 'function') {
+      log.then(function (res) {
+        if (res && res.ok) return;
+        var warn = O.em('div', 'pay-sheet-warn');
+        warn.appendChild(document.createTextNode('Heads up: I couldn\u2019t log your order automatically. After paying, please email '));
+        var mail = O.em('a', '', O.CONTACT_EMAIL);
+        mail.href = 'mailto:' + O.CONTACT_EMAIL;
+        warn.appendChild(mail);
+        warn.appendChild(document.createTextNode(' with the items below so nothing gets lost.'));
+        var list = O.em('div', 'pay-sheet-warn-items');
+        (items || []).forEach(function (it) {
+          list.appendChild(O.em('div', '', itemIcon(it) + ' ' + it.title));
+        });
+        warn.appendChild(list);
+        sheet.appendChild(warn);
+      });
+    }
 
     // Keep it inside the modal strip at bottom
     var modal = document.getElementById('productModal');
@@ -272,7 +297,7 @@
 
   /* ---------- Delivery via Apps Script ---------- */
   function postOrder(order) {
-    if (!O.APPS_SCRIPT_URL) return;
+    if (!O.APPS_SCRIPT_URL) return Promise.resolve({ ok: true, demo: true });
     var body = {
       type: 'order',
       email: order.email,
@@ -286,18 +311,24 @@
       }),
       total: order.total
     };
-    fetch(O.APPS_SCRIPT_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify(body)
-    }).catch(function () { /* no-cors swallows response */ });
+    return O.postToAppsScript(body);
   }
 
   function completeOrder(order) {
-    postOrder(order);
+    postOrder(order).then(function (res) {
+      if (res && res.ok) {
+        if (order.items.length) O.clearCart();
+        showSuccess(order);
+      } else {
+        showDeliveryError(order, res && res.reason);
+      }
+    });
+  }
 
-    if (order.items.length) O.clearCart();
+  function showSuccess(order) {
+    if (els.successCard) els.successCard.classList.remove('success-error');
+    if (els.successIcon) els.successIcon.textContent = '✓';
+    if (els.successTitle && els.successTitleDefault) els.successTitle.textContent = els.successTitleDefault;
 
     if (els.successSub) {
       els.successSub.innerHTML = (Number(order.total) <= 0)
@@ -307,13 +338,35 @@
     var emailNode = document.getElementById('successEmail');
     if (emailNode) emailNode.textContent = order.email;
 
+    renderSuccessItems(order);
+    els.successView.hidden = false;
+    els.successView.scrollIntoView({ behavior: 'smooth' });
+    els.email.value = '';
+  }
+
+  function showDeliveryError(order, reason) {
+    if (els.successCard) els.successCard.classList.add('success-error');
+    if (els.successIcon) els.successIcon.textContent = '!';
+    if (els.successTitle) els.successTitle.textContent = 'That didn\u2019t go through';
+
+    if (els.successSub) {
+      els.successSub.innerHTML =
+        'Sorry, your order couldn\u2019t be submitted automatically' +
+        (reason === 'network' ? ' (connection problem)' : '') +
+        '. Please email <a href="mailto:' + O.CONTACT_EMAIL + '">' + O.CONTACT_EMAIL + '</a> and I\u2019ll send your maps right away.';
+    }
+
+    // Keep the cart so the buyer can simply try again.
+    renderSuccessItems(order);
+    els.successView.hidden = false;
+    els.successView.scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function renderSuccessItems(order) {
     els.successDetails.innerHTML = '';
     order.items.forEach(function (it) {
       els.successDetails.appendChild(O.em('div', 'success-item', itemIcon(it) + ' ' + it.title));
     });
-    els.successView.hidden = false;
-    els.successView.scrollIntoView({ behavior: 'smooth' });
-    els.email.value = '';
   }
 
   function orderTotal() {

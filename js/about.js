@@ -36,24 +36,21 @@
       var payload = { type: 'contact', name: name, email: email, message: message };
 
       if (O.APPS_SCRIPT_URL) {
-        fetch(O.APPS_SCRIPT_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(payload)
-        }).then(function () {
-          done(msg, submitBtn);
-        }).catch(function () {
-          done(msg, submitBtn);
+        O.postToAppsScript(payload).then(function (res) {
+          if (res && res.ok) {
+            done(msg, submitBtn);
+            form.reset();
+          } else {
+            showMsg(msg, submitBtn, O.deliveryErrorText(res && res.reason, 'send your message'), true);
+          }
         });
       } else {
         // Demo mode (no Apps Script URL configured yet)
         setTimeout(function () {
           done(msg, submitBtn);
+          form.reset();
         }, 600);
       }
-
-      form.reset();
     });
 
     renderIGTiles();

@@ -134,6 +134,45 @@
     return DATA ? DATA.countries.filter(function (c) { return c.id === id; })[0] : null;
   }
 
+  /* ---------- Apps Script delivery hook ----------
+     Posts a payload to the Apps Script web app and reports whether the
+     request actually reached it.
+
+     A healthy deployment answers a POST with a 302 handoff to
+     script.googleusercontent.com. Sent with redirect:"manual", that
+     shows up as response.type === 'opaqueredirect'. When the deployment
+     is misconfigured (e.g. its access is no longer "Anyone"), the
+     endpoint answers directly instead — an opaque response — or the
+     request fails outright.
+
+     Apps Script sends no CORS headers, so the JSON body can't be read
+     cross-origin; the response type alone is enough to tell a working
+     endpoint from a silently broken one.
+
+     Resolves to { ok: true } or { ok: false, reason: 'blocked'|'network'|'unconfigured' }. */
+  function postToAppsScript(payload) {
+    if (!APPS_SCRIPT_URL) return Promise.resolve({ ok: false, reason: 'unconfigured' });
+    return fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      redirect: 'manual',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload)
+    }).then(function (res) {
+      return (res && res.type === 'opaqueredirect')
+        ? { ok: true }
+        : { ok: false, reason: 'blocked' };
+    }).catch(function () {
+      return { ok: false, reason: 'network' };
+    });
+  }
+
+  function deliveryErrorText(reason, action) {
+    return 'Sorry, I couldn\u2019t ' + action + ' just now' +
+      (reason === 'network' ? ' (connection problem)' : '') +
+      '. Please email ' + CONTACT_EMAIL + ' and I\u2019ll sort it out right away.';
+  }
+
   /* ---------- Poster resolution ----------
      Rules:
        - an explicit Drive URL in country.drivePoster always wins;
@@ -376,6 +415,8 @@
     cityItem: cityItem,
     guideItem: guideItem,
     packItem: packItem,
+    postToAppsScript: postToAppsScript,
+    deliveryErrorText: deliveryErrorText,
     getCart: getCart,
     setCart: setCart,
     addToCart: addToCart,

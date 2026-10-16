@@ -46,6 +46,9 @@
  *
  *   3. Paste THIS FILE into a new Apps Script project:
  *      script.google.com -> New project -> paste -> save.
+ *      Also add appsscript.json (Project Settings -> tick
+ *      "Show 'appsscript.json' manifest file in editor") so the
+ *      required permission scopes are requested.
  *
  *   4. Deploy:
  *      Deploy -> New deployment -> type "Web app"
@@ -65,6 +68,17 @@
  *      Every 10 minutes. (Or just run createTimerTrigger()
  *      once from the editor — it does the same thing.)
  *
+ *   8. MAIL SENDING (send as hi@oanatravels.com via Zoho, JP data
+ *      center). Add these Script Properties ONCE (Project Settings ->
+ *      Script properties), never in this file:
+ *        ZOHO_CLIENT_ID, ZOHO_CLIENT_SECRET,
+ *        ZOHO_REFRESH_TOKEN, ZOHO_ACCOUNT_ID
+ *      Order mail goes through sendMail_() as MAIL_FROM so it aligns
+ *      with our SPF/DKIM/DMARC records. If Zoho is unreachable it falls
+ *      back to MailApp (degraded: sent from the Gmail account). The
+ *      contact form is always sent through MailApp so its Reply-To can
+ *      reach the sender.
+ *
  * SECURITY NOTE
  *   "Anyone" access is required for your static site to reach
  *   this script. The script only grants VIEW access to the
@@ -80,7 +94,17 @@ var CONTACT_EMAIL   = 'hi@oanatravels.com';
 
 /** The email that gets a notification EVERY time an order comes in
  *  (paid or free). Change it anytime and re-deploy. */
-var NOTIFY_EMAIL = 'oanagavrila1902@gmail.com';
+var NOTIFY_EMAIL = 'hi@oanatravels.com';
+
+/** MAIL SENDING — order mail is sent as MAIL_FROM through the Zoho Mail
+ *  REST API (JP data center) so it aligns with our SPF (zohomail.jp) and
+ *  DKIM (zmail) records. The contact form is sent through MailApp (from
+ *  the Gmail account) so its Reply-To can reach the sender. Credentials
+ *  live in Script Properties, never in this file. */
+var MAIL_FROM      = 'hi@oanatravels.com';
+var MAIL_FROM_NAME = 'OanaTravels';
+var ZOHO_API_BASE  = 'https://mail.zoho.jp';                  // JP data center
+var ZOHO_TOKEN_URL = 'https://accounts.zoho.jp/oauth/v2/token'; // JP data center
 
 /**
  * PAID_WORD — the word Oana types into COLUMN 1 ("Pachet") of a
@@ -448,7 +472,7 @@ function grantAccess_(resolved, email) {
 /** Send the customer their per-product download links (HTML + plain-text). */
 function sendOrderEmail_(email, resolved, total) {
   var subject = 'Your OanaTravels maps & guides are ready! 🌏';
-  MailApp.sendEmail({
+  sendMail_({
     to: email,
     subject: subject,
     body: buildOrderEmail_(email, resolved),
@@ -490,7 +514,7 @@ function sendOrderNotification_(email, resolved, total, status) {
       'Total: ' + price + '\n\n' +
       note;
 
-    MailApp.sendEmail({
+    sendMail_({
       to: NOTIFY_EMAIL,
       subject: subj,
       body: body,
@@ -505,7 +529,10 @@ function sendOrderNotification_(email, resolved, total, status) {
         '<p style="margin:0;">Sent automatically by the OanaTravels order script.</p>'
       )
     });
-  } catch (err) { /* never break the order over a notification */ }
+  } catch (err) {
+    // never break the order over a notification, but do surface the cause
+    console.error('sendOrderNotification_ failed: ' + err);
+  }
 }
 
 function buildOrderEmail_(email, resolved) {
@@ -875,12 +902,17 @@ function handleContact(data) {
       '<p style="margin:0;">Sent from the OanaTravels contact form.</p>'
     );
 
-    MailApp.sendEmail({
+    var sent = sendMail_({
       to: CONTACT_EMAIL,
       subject: subject,
       body: body,
-      htmlBody: html
+      replyTo: email,
+      htmlBody: html,
+      forceMailApp: true
     });
+    if (!sent) {
+      return json_({ ok: false, error: 'Could not send the message' });
+    }
 
     return json_({ ok: true });
   } catch (err) {
@@ -974,4 +1006,160 @@ function string_(v) {
 
 function isEmail_(s) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+}
+
+/* ---------- mail sending (Zoho Mail API, JP data center) ---------- */
+
+/**
+ * sendMail_ — send one email as MAIL_FROM through the Zoho Mail REST
+ * API so it aligns with our SPF/DKIM/DMARC. If anything about the API
+ * fails (no token, Zoho down, misconfigured) it falls back to MailApp
+ * so an order is never left without a notification. Returns true when
+ * a message was handed off successfully, false otherwise.
+ *
+ * The Zoho REST API has no per-message Reply-To, so opts.forceMailApp
+ * skips Zoho and sends through MailApp instead. Used by the contact form,
+ * where Oana must be able to hit Reply to reach the sender.
+ *
+ * opts: { to, subject, body, htmlBody, replyTo, forceMailApp }
+ */
+function sendMail_(opts) {
+  opts = opts || {};
+  var to = string_(opts.to);
+  var subject = string_(opts.subject);
+  var html = string_(opts.htmlBody);
+  var text = string_(opts.body) || htmlToText_(html);
+  var replyTo = string_(opts.replyTo) || MAIL_FROM;
+
+  if (!opts.forceMailApp) {
+    try {
+      var accountId = zohoAccountId_();
+      var token = zohoAccessToken_();
+      var payload = {
+        fromAddress: MAIL_FROM,
+        toAddress: to,
+        subject: subject,
+        content: html || text.replace(/\n/g, '<br>'),
+        mailFormat: 'html'
+      };
+      var res = UrlFetchApp.fetch(ZOHO_API_BASE + '/api/accounts/' + accountId + '/messages', {
+        method: 'post',
+        contentType: 'application/json',
+        headers: { Authorization: 'Zoho-oauthtoken ' + token },
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true
+      });
+      var code = res.getResponseCode();
+      if (code >= 200 && code < 300) return true;
+      throw new Error('Zoho send failed (' + code + '): ' + res.getContentText());
+    } catch (err) {
+      console.error('sendMail_ Zoho failed: ' + err + ' | from=' + MAIL_FROM + ' to=' + to);
+    }
+  }
+
+  // MailApp path: required whenever a Reply-To is needed (Zoho REST can't
+  // set one), and the degraded fallback when Zoho is unavailable.
+  try {
+    MailApp.sendEmail({
+      to: to,
+      subject: subject,
+      body: text,
+      htmlBody: html || undefined,
+      replyTo: replyTo,
+      name: MAIL_FROM_NAME
+    });
+    console.warn(opts.forceMailApp
+      ? 'sendMail_ sent via MailApp to carry a Reply-To.'
+      : 'sendMail_ used MailApp fallback (sent from the Gmail account).');
+    return true;
+  } catch (err2) {
+    console.error('sendMail_ MailApp fallback failed: ' + err2);
+    return false;
+  }
+}
+
+/**
+ * zohoAccessToken_ — exchange the stored refresh token for a short-lived
+ * access token, cached for ~50 minutes so it isn't refetched per email.
+ */
+function zohoAccessToken_() {
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get('zoho_access_token');
+  if (cached) return cached;
+
+  var props = PropertiesService.getScriptProperties();
+  var res = UrlFetchApp.fetch(ZOHO_TOKEN_URL, {
+    method: 'post',
+    payload: {
+      grant_type: 'refresh_token',
+      client_id: props.getProperty('ZOHO_CLIENT_ID'),
+      client_secret: props.getProperty('ZOHO_CLIENT_SECRET'),
+      refresh_token: props.getProperty('ZOHO_REFRESH_TOKEN')
+    },
+    muteHttpExceptions: true
+  });
+  var body = JSON.parse(res.getContentText() || '{}');
+  if (!body.access_token) {
+    throw new Error('Zoho token error: ' + res.getContentText());
+  }
+  cache.put('zoho_access_token', body.access_token, 3000);
+  return body.access_token;
+}
+
+/**
+ * zohoAccountId_ — resolve (and cache) the Zoho accountId for MAIL_FROM.
+ * Uses the stored property when present, otherwise looks it up once.
+ */
+function zohoAccountId_() {
+  var props = PropertiesService.getScriptProperties();
+  var id = props.getProperty('ZOHO_ACCOUNT_ID');
+  if (id) return id;
+
+  var res = UrlFetchApp.fetch(ZOHO_API_BASE + '/api/accounts', {
+    headers: { Authorization: 'Zoho-oauthtoken ' + zohoAccessToken_() },
+    muteHttpExceptions: true
+  });
+  var body = JSON.parse(res.getContentText() || '{}');
+  var accounts = body.data || [];
+  var match = accounts.filter(function (a) {
+    return string_(a.mailboxAddress || a.primaryEmailAddress || a.emailAddress)
+      .toLowerCase() === MAIL_FROM.toLowerCase();
+  })[0] || accounts[0];
+  if (!match) {
+    throw new Error('Zoho account not found: ' + res.getContentText());
+  }
+  id = String(match.accountId);
+  props.setProperty('ZOHO_ACCOUNT_ID', id);
+  return id;
+}
+
+/** Rough HTML -> plain text for the MailApp fallback's body. */
+function htmlToText_(html) {
+  return string_(html)
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|h[1-6]|tr)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/**
+ * testSendMail — run once from the Apps Script editor to verify Zoho
+ * API sending works. It emails MAIL_FROM itself; check that inbox.
+ */
+function testSendMail() {
+  var ok = sendMail_({
+    to: MAIL_FROM,
+    subject: 'OanaTravels mail test',
+    body: 'If you can read this, Zoho API sending works.',
+    htmlBody: '<p>If you can read this, <strong>Zoho API sending works</strong>.</p>'
+  });
+  Logger.log('testSendMail ok=' + ok);
+  return ok;
 }

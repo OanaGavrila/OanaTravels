@@ -117,6 +117,7 @@
     destinationsGrid: document.getElementById('destinationsGrid'),
     moreSoonGrid: document.getElementById('moreSoonGrid'),
     packsGrid: document.getElementById('packsGrid'),
+    samplesGrid: document.getElementById('samplesGrid'),
     newsletterForm: document.getElementById('newsletterForm'),
     newsletterEmail: document.getElementById('newsletterEmail'),
     newsletterMsg: document.getElementById('newsletterMsg'),
@@ -746,6 +747,73 @@ var flagBadge = el('span', 'country-card-flag fi fi-' + (FLAG_CODES[country.id] 
     els.packsGrid.appendChild(fragment);
   }
 
+  /* ---------- Free samples grid ---------- */
+  function renderFreeSamples(countries) {
+    var section = document.getElementById('samples');
+    if (!els.samplesGrid || !section) return;
+
+    var samples = [];
+    countries.forEach(function (country) {
+      if (country.moreSoon) return;
+      var moreSoonCities = country.moreSoonCities || [];
+      (country.freeCities || []).forEach(function (city) {
+        if (moreSoonCities.indexOf(city) !== -1) return;
+        samples.push({ country: country, city: city });
+      });
+    });
+
+    if (samples.length === 0) {
+      section.hidden = true;
+      return;
+    }
+
+    var fragment = document.createDocumentFragment();
+    samples.forEach(function (sample, index) {
+      var country = sample.country;
+      var city = sample.city;
+
+      var card = el('article', 'sample-card reveal');
+      card.style.transitionDelay = (index * 60) + 'ms';
+
+      var image = el('div', 'sample-card-image');
+      image.appendChild(el('span', 'fi fi-' + (FLAG_CODES[country.id] || 'xx') + ' fis sample-card-flag'));
+      var posterSrc = Oana.cityPosterSrc(country, city);
+      if (posterSrc) {
+        var poster = document.createElement('img');
+        poster.className = 'sample-card-poster';
+        poster.src = posterSrc;
+        poster.alt = city + ' map preview';
+        poster.loading = 'lazy';
+        poster.addEventListener('error', function () { poster.remove(); });
+        image.appendChild(poster);
+      }
+      image.appendChild(el('span', 'sample-badge', '100% Free'));
+      card.appendChild(image);
+
+      var body = el('div', 'sample-card-body');
+      body.appendChild(el('h3', 'sample-card-title', city + ' Map'));
+      body.appendChild(el('p', 'sample-card-desc',
+        'A free digital map of ' + city + ', ' + country.name +
+        '. Top spots, hidden gems, and route-ready pins \u2014 grab it and try it out.'));
+
+      var footer = el('div', 'sample-card-footer');
+      footer.appendChild(el('span', 'sample-price', 'FREE'));
+      var getBtn = el('button', 'btn btn-sm btn-primary', 'Get Free Map');
+      getBtn.type = 'button';
+      getBtn.setAttribute('aria-label', 'Get the free ' + city + ' map, ' + country.name);
+      getBtn.addEventListener('click', function () {
+        Oana.buyNow(Oana.cityItem(country, city));
+        window.location.href = 'pay.html';
+      });
+      footer.appendChild(getBtn);
+      body.appendChild(footer);
+
+      card.appendChild(body);
+      fragment.appendChild(card);
+    });
+    els.samplesGrid.appendChild(fragment);
+  }
+
   function flashButton(btn, msg) {
     var original = btn.textContent;
     btn.textContent = msg;
@@ -766,22 +834,27 @@ var flagBadge = el('span', 'country-card-flag fi fi-' + (FLAG_CODES[country.id] 
         if (els.newsletterMsg) {
           els.newsletterMsg.textContent = 'That email address doesn\u2019t look right.';
           els.newsletterMsg.hidden = false;
+          els.newsletterMsg.classList.add('form-msg-error');
         }
         return;
       }
 
       var payload = { type: 'newsletter', email: email };
       if (Oana.APPS_SCRIPT_URL) {
-        fetch(Oana.APPS_SCRIPT_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(payload)
-        }).then(showNewsletterMsg).catch(showNewsletterMsg);
+        Oana.postToAppsScript(payload).then(function (res) {
+          if (res && res.ok) {
+            showNewsletterMsg();
+            els.newsletterForm.reset();
+          } else {
+            showNewsletterError();
+          }
+        });
       } else {
-        setTimeout(showNewsletterMsg, 600);
+        setTimeout(function () {
+          showNewsletterMsg();
+          els.newsletterForm.reset();
+        }, 600);
       }
-      els.newsletterForm.reset();
     });
   }
 
@@ -789,6 +862,14 @@ var flagBadge = el('span', 'country-card-flag fi fi-' + (FLAG_CODES[country.id] 
     if (!els.newsletterMsg) return;
     els.newsletterMsg.textContent = 'Thanks for subscribing! 🌏';
     els.newsletterMsg.hidden = false;
+    els.newsletterMsg.classList.remove('form-msg-error');
+  }
+
+  function showNewsletterError() {
+    if (!els.newsletterMsg) return;
+    els.newsletterMsg.textContent = 'Sorry, that didn\u2019t go through. Please try again or email ' + Oana.CONTACT_EMAIL + '.';
+    els.newsletterMsg.hidden = false;
+    els.newsletterMsg.classList.add('form-msg-error');
   }
 
   /* ---------- Instagram preview tiles ---------- */
@@ -846,6 +927,8 @@ var flagBadge = el('span', 'country-card-flag fi fi-' + (FLAG_CODES[country.id] 
           price: Oana.packPriceFor(c)
         };
       }));
+
+      renderFreeSamples(data.countries);
 
       renderMapDots(data.countries);
       Oana.initReveal();

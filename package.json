@@ -3,7 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "optimize": "node tools/optimize-images.mjs"
+    "optimize": "node tools/optimize-images.mjs",
+    "test": "node tools/test-order.mjs",
+    "test-order": "node tools/test-order.mjs"
   },
   "devDependencies": {
     "sharp": "^0.33.5"
