@@ -650,7 +650,7 @@
       if (posterSrc) {
         var poster = document.createElement('img');
         poster.className = 'country-card-poster';
-        poster.src = posterSrc;
+        Oana.applyPoster(poster, posterSrc, '(max-width: 640px) 92vw, (max-width: 1100px) 45vw, 280px');
         poster.alt = country.name;
         poster.loading = 'lazy';
         poster.addEventListener('error', function () { poster.remove(); });
@@ -708,7 +708,7 @@ var flagBadge = el('span', 'country-card-flag fi fi-' + (FLAG_CODES[country.id] 
       if (pack.posterSrc) {
         var poster = document.createElement('img');
         poster.className = 'pack-card-poster';
-        poster.src = pack.posterSrc;
+        Oana.applyPoster(poster, pack.posterSrc, '(max-width: 640px) 92vw, (max-width: 1100px) 45vw, 340px');
         poster.alt = pack.name;
         poster.loading = 'lazy';
         poster.addEventListener('error', function () { poster.remove(); });
@@ -781,7 +781,7 @@ var flagBadge = el('span', 'country-card-flag fi fi-' + (FLAG_CODES[country.id] 
       if (posterSrc) {
         var poster = document.createElement('img');
         poster.className = 'sample-card-poster';
-        poster.src = posterSrc;
+        Oana.applyPoster(poster, posterSrc, '(max-width: 640px) 92vw, (max-width: 1100px) 45vw, 340px');
         poster.alt = city + ' map preview';
         poster.loading = 'lazy';
         poster.addEventListener('error', function () { poster.remove(); });

@@ -140,26 +140,26 @@
 
      A healthy deployment answers a POST with a 302 handoff to
      script.googleusercontent.com. Sent with redirect:"manual", that
-     shows up as response.type === 'opaqueredirect'. When the deployment
-     is misconfigured (e.g. its access is no longer "Anyone"), the
-     endpoint answers directly instead — an opaque response — or the
-     request fails outright.
+     shows up as response.type === 'opaqueredirect'.
 
-     Apps Script sends no CORS headers, so the JSON body can't be read
-     cross-origin; the response type alone is enough to tell a working
-     endpoint from a silently broken one.
+     Note: this must NOT use mode:"no-cors". Chrome rejects the
+     combination of no-cors + manual redirects with a network error
+     ("Failed to fetch"), which made every order look like a failure.
+     mode:"cors" + redirect:"manual" returns the opaque-redirect
+     response without needing CORS headers (Content-Type text/plain is
+     CORS-safelisted, so no preflight is sent).
 
      Resolves to { ok: true } or { ok: false, reason: 'blocked'|'network'|'unconfigured' }. */
   function postToAppsScript(payload) {
     if (!APPS_SCRIPT_URL) return Promise.resolve({ ok: false, reason: 'unconfigured' });
     return fetch(APPS_SCRIPT_URL, {
       method: 'POST',
-      mode: 'no-cors',
+      mode: 'cors',
       redirect: 'manual',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify(payload)
     }).then(function (res) {
-      return (res && res.type === 'opaqueredirect')
+      return (res && (res.type === 'opaqueredirect' || res.type === 'opaque'))
         ? { ok: true }
         : { ok: false, reason: 'blocked' };
     }).catch(function () {
@@ -207,6 +207,28 @@
     var drive = country.driveCityPosters && country.driveCityPosters[city];
     if (drive) return driveImage(drive);
     return 'assets/posters/' + country.name + '/' + city + '.webp';
+  }
+
+  /* Responsive attributes for a poster. Local posters get a "-480.webp"
+     sibling (see tools/optimize-images.mjs); Drive/external URLs are
+     returned without a srcset so no broken candidates are offered. */
+  function posterAttrs(src, sizes) {
+    var out = { src: src, srcset: '', sizes: '' };
+    if (!src || src.indexOf('assets/posters/') !== 0) return out;
+    var enc = encodeURI(src);
+    var small = enc.replace(/\.webp$/i, '-480.webp');
+    if (small === enc) return out;
+    out.srcset = small + ' 480w, ' + enc + ' 960w';
+    out.sizes = sizes || '(max-width: 640px) 92vw, (max-width: 1100px) 45vw, 300px';
+    return out;
+  }
+
+  /* Apply posterAttrs() onto an existing <img> element. */
+  function applyPoster(img, src, sizes) {
+    var a = posterAttrs(src, sizes);
+    img.src = a.src;
+    if (a.srcset) { img.srcset = a.srcset; img.sizes = a.sizes; }
+    return img;
   }
 
   /* ---------- Cart item builders ---------- */
@@ -412,6 +434,8 @@
     countryById: countryById,
     countryPosterSrc: countryPosterSrc,
     cityPosterSrc: cityPosterSrc,
+    posterAttrs: posterAttrs,
+    applyPoster: applyPoster,
     cityItem: cityItem,
     guideItem: guideItem,
     packItem: packItem,

@@ -57,9 +57,10 @@
     function card(media, badge, type, name, desc, price, actions, extraClass) {
       var mediaHTML;
       if (media && media.type === 'poster') {
+        var pa = O.posterAttrs(media.src, '(max-width: 640px) 92vw, (max-width: 1100px) 45vw, 360px');
         mediaHTML =
           '    <span class="' + flagClass + ' fis product-card-flag"></span>' +
-          '    <img src="' + media.src + '" alt="' + name + '" loading="lazy" class="product-card-poster" onerror="this.remove()">';
+          '    <img src="' + pa.src + '"' + (pa.srcset ? ' srcset="' + pa.srcset + '" sizes="' + pa.sizes + '"' : '') + ' alt="' + name + '" loading="lazy" class="product-card-poster" onerror="this.remove()">';
       } else {
         mediaHTML = '    <span class="' + flagClass + ' fis product-card-flag"></span>';
       }

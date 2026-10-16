@@ -51,7 +51,7 @@
       if (posterSrc) {
         var poster = document.createElement('img');
         poster.className = 'shop-country-media-poster';
-        poster.src = posterSrc;
+        O.applyPoster(poster, posterSrc, '(max-width: 640px) 92vw, (max-width: 1100px) 45vw, 320px');
         poster.alt = country.name;
         poster.loading = 'lazy';
         poster.addEventListener('error', function () { poster.remove(); });
