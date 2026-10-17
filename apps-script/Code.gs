@@ -161,7 +161,8 @@ var PRODUCT_FILES = {
   },
   'indonesia': {
     maps: {
-      'East Java': '1dEZrkPkz1bSF0G_EDpto5aPuW7IrsE4'  // Drive file is a Google My Maps map
+      'East Java': '1dEZrkPkz1bSF0G_EDpto5aPuW7IrsE4', // Drive file is a Google My Maps map
+      'Bali': '1jp9VXjjM8O0l-Wa-tUjnUWIPE2srPh0'  // Drive file is a Google My Maps map
     },
     guide: '1jCMJKXlnOUoUvQ7AKv7_Gg19xBKt4ZQcFWLmyuSLMyA'
   },
@@ -186,7 +187,8 @@ var PRODUCT_FILES = {
   'vietnam': {
     maps: {
       'Hue': '1vV9TPATEBGjgzyNIOMxHgHqOtH3lJ6g',
-      'Ninh Binh': '1P6FqEw4t1gC0r_ixPyS0mxYjh5Q4U80'  // Drive file is named "Ninh Bình"
+      'Ninh Binh': '1P6FqEw4t1gC0r_ixPyS0mxYjh5Q4U80', // Drive file is named "Ninh Bình"
+      'Hoi An': '1fX1Bwyw_heLqyX5Tpmgeyc_Si6_UoTg'  // Drive file is a Google My Maps map
     },
     guide: '1XsdxzHOFGCeJzpEF1uT76-cXnLL4E_GdctX5YpvZB1U'
   },

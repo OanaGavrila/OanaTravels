@@ -16,8 +16,7 @@
       "moreSoonCities": [
         "Da Nang",
         "Ho Chi Minh",
-        "Hanoi",
-        "Hoi An"
+        "Hanoi"
       ],
       "freeCities": [
         "Ninh Binh"
@@ -90,9 +89,6 @@
       "emoji": "🌋",
       "cities": [
         "East Java",
-        "Bali"
-      ],
-      "moreSoonCities": [
         "Bali"
       ],
       "guide": {
