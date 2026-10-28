@@ -68,16 +68,12 @@
  *      Every 10 minutes. (Or just run createTimerTrigger()
  *      once from the editor — it does the same thing.)
  *
- *   8. MAIL SENDING (send as hi@oanatravels.com via Zoho, JP data
- *      center). Add these Script Properties ONCE (Project Settings ->
- *      Script properties), never in this file:
- *        ZOHO_CLIENT_ID, ZOHO_CLIENT_SECRET,
- *        ZOHO_REFRESH_TOKEN, ZOHO_ACCOUNT_ID
- *      Order mail goes through sendMail_() as MAIL_FROM so it aligns
- *      with our SPF/DKIM/DMARC records. If Zoho is unreachable it falls
- *      back to MailApp (degraded: sent from the Gmail account). The
- *      contact form is always sent through MailApp so its Reply-To can
- *      reach the sender.
+ *   8. MAIL SENDING
+ *      All mail is sent with MailApp from the Google account that owns
+ *      this script. MAIL_FROM is used as the Reply-To address and in the
+ *      email footers. Domain email/DNS is managed on Cloudflare; make
+ *      sure the Google account is allowed to send as hi@oanatravels.com
+ *      (add it as a "Send mail as" alias and verify it).
  *
  * SECURITY NOTE
  *   "Anyone" access is required for your static site to reach
@@ -94,17 +90,13 @@ var CONTACT_EMAIL   = 'hi@oanatravels.com';
 
 /** The email that gets a notification EVERY time an order comes in
  *  (paid or free). Change it anytime and re-deploy. */
-var NOTIFY_EMAIL = 'hi@oanatravels.com';
+var NOTIFY_EMAIL = 'oanagavrila1902@gmail.com';
 
-/** MAIL SENDING — order mail is sent as MAIL_FROM through the Zoho Mail
- *  REST API (JP data center) so it aligns with our SPF (zohomail.jp) and
- *  DKIM (zmail) records. The contact form is sent through MailApp (from
- *  the Gmail account) so its Reply-To can reach the sender. Credentials
- *  live in Script Properties, never in this file. */
+/** MAIL SENDING — all mail goes through MailApp from the Google account
+ *  that owns this script. MAIL_FROM is the Reply-To address and appears
+ *  in the email footers. Domain email/DNS is managed on Cloudflare. */
 var MAIL_FROM      = 'hi@oanatravels.com';
 var MAIL_FROM_NAME = 'OanaTravels';
-var ZOHO_API_BASE  = 'https://mail.zoho.jp';                  // JP data center
-var ZOHO_TOKEN_URL = 'https://accounts.zoho.jp/oauth/v2/token'; // JP data center
 
 /**
  * PAID_WORD — the word Oana types into COLUMN 1 ("Pachet") of a
@@ -275,6 +267,10 @@ function doPost(e) {
 
   if (data.type === 'newsletter') {
     return handleNewsletter(data);
+  }
+
+  if (data.type === 'mailtest') {
+    return handleMailTest(data);
   }
 
   if (data.type === 'order') {
@@ -909,8 +905,7 @@ function handleContact(data) {
       subject: subject,
       body: body,
       replyTo: email,
-      htmlBody: html,
-      forceMailApp: true
+      htmlBody: html
     });
     if (!sent) {
       return json_({ ok: false, error: 'Could not send the message' });
@@ -958,6 +953,36 @@ function handleNewsletter(data) {
 }
 
 /* ---------- helpers ---------- */
+
+/**
+ * handleMailTest — POST { type:'mailtest', setup:'<SETUP_KEY>' } to send
+ * one test email to MAIL_FROM through MailApp. Check that inbox (routed
+ * via Cloudflare) to confirm mail sending works. No order is logged.
+ */
+function handleMailTest(data) {
+  if (!data || data.setup !== SETUP_KEY) {
+    return json_({ ok: false, error: 'Setup key missing or wrong' });
+  }
+  var stamp = Utilities.formatDate(
+    new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss'
+  );
+  var subject = 'OanaTravels mail test — ' + stamp;
+  var ok = sendMail_({
+    to: MAIL_FROM,
+    subject: subject,
+    body: 'If you can read this, OanaTravels mail sending works.\n\nSent: ' + stamp,
+    htmlBody: htmlShell_(
+      '<h2 style="color:#2d3a47;font-size:20px;margin:0 0 6px;">Mail test</h2>' +
+      '<p style="color:#4a5568;font-size:14px;line-height:1.7;margin:0;">If you can read this, <strong>OanaTravels mail sending works</strong>.</p>' +
+      '<p style="color:#6b7280;font-size:12px;margin:14px 0 0;">Sent: ' + htmlEsc_(stamp) + '</p>',
+      '<p style="margin:0;">Sent automatically by the OanaTravels mail test.</p>'
+    )
+  });
+  if (!ok) {
+    return json_({ ok: false, error: 'MailApp send failed — check the Apps Script execution log.' });
+  }
+  return json_({ ok: true, to: MAIL_FROM, subject: subject });
+}
 
 /** Accept the website payload as an array of item objects. */
 function parseItems_(raw) {
@@ -1010,20 +1035,15 @@ function isEmail_(s) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 }
 
-/* ---------- mail sending (Zoho Mail API, JP data center) ---------- */
+/* ---------- mail sending (MailApp) ---------- */
 
 /**
- * sendMail_ — send one email as MAIL_FROM through the Zoho Mail REST
- * API so it aligns with our SPF/DKIM/DMARC. If anything about the API
- * fails (no token, Zoho down, misconfigured) it falls back to MailApp
- * so an order is never left without a notification. Returns true when
- * a message was handed off successfully, false otherwise.
+ * sendMail_ — send one email through MailApp from the Google account
+ * that owns this script. Returns true when the message was handed off
+ * successfully, false otherwise. MAIL_FROM is used as the default
+ * Reply-To so replies reach the shared inbox.
  *
- * The Zoho REST API has no per-message Reply-To, so opts.forceMailApp
- * skips Zoho and sends through MailApp instead. Used by the contact form,
- * where Oana must be able to hit Reply to reach the sender.
- *
- * opts: { to, subject, body, htmlBody, replyTo, forceMailApp }
+ * opts: { to, subject, body, htmlBody, replyTo }
  */
 function sendMail_(opts) {
   opts = opts || {};
@@ -1033,34 +1053,6 @@ function sendMail_(opts) {
   var text = string_(opts.body) || htmlToText_(html);
   var replyTo = string_(opts.replyTo) || MAIL_FROM;
 
-  if (!opts.forceMailApp) {
-    try {
-      var accountId = zohoAccountId_();
-      var token = zohoAccessToken_();
-      var payload = {
-        fromAddress: MAIL_FROM,
-        toAddress: to,
-        subject: subject,
-        content: html || text.replace(/\n/g, '<br>'),
-        mailFormat: 'html'
-      };
-      var res = UrlFetchApp.fetch(ZOHO_API_BASE + '/api/accounts/' + accountId + '/messages', {
-        method: 'post',
-        contentType: 'application/json',
-        headers: { Authorization: 'Zoho-oauthtoken ' + token },
-        payload: JSON.stringify(payload),
-        muteHttpExceptions: true
-      });
-      var code = res.getResponseCode();
-      if (code >= 200 && code < 300) return true;
-      throw new Error('Zoho send failed (' + code + '): ' + res.getContentText());
-    } catch (err) {
-      console.error('sendMail_ Zoho failed: ' + err + ' | from=' + MAIL_FROM + ' to=' + to);
-    }
-  }
-
-  // MailApp path: required whenever a Reply-To is needed (Zoho REST can't
-  // set one), and the degraded fallback when Zoho is unavailable.
   try {
     MailApp.sendEmail({
       to: to,
@@ -1070,72 +1062,14 @@ function sendMail_(opts) {
       replyTo: replyTo,
       name: MAIL_FROM_NAME
     });
-    console.warn(opts.forceMailApp
-      ? 'sendMail_ sent via MailApp to carry a Reply-To.'
-      : 'sendMail_ used MailApp fallback (sent from the Gmail account).');
     return true;
-  } catch (err2) {
-    console.error('sendMail_ MailApp fallback failed: ' + err2);
+  } catch (err) {
+    console.error('sendMail_ MailApp failed: ' + err + ' | to=' + to);
     return false;
   }
 }
 
-/**
- * zohoAccessToken_ — exchange the stored refresh token for a short-lived
- * access token, cached for ~50 minutes so it isn't refetched per email.
- */
-function zohoAccessToken_() {
-  var cache = CacheService.getScriptCache();
-  var cached = cache.get('zoho_access_token');
-  if (cached) return cached;
-
-  var props = PropertiesService.getScriptProperties();
-  var res = UrlFetchApp.fetch(ZOHO_TOKEN_URL, {
-    method: 'post',
-    payload: {
-      grant_type: 'refresh_token',
-      client_id: props.getProperty('ZOHO_CLIENT_ID'),
-      client_secret: props.getProperty('ZOHO_CLIENT_SECRET'),
-      refresh_token: props.getProperty('ZOHO_REFRESH_TOKEN')
-    },
-    muteHttpExceptions: true
-  });
-  var body = JSON.parse(res.getContentText() || '{}');
-  if (!body.access_token) {
-    throw new Error('Zoho token error: ' + res.getContentText());
-  }
-  cache.put('zoho_access_token', body.access_token, 3000);
-  return body.access_token;
-}
-
-/**
- * zohoAccountId_ — resolve (and cache) the Zoho accountId for MAIL_FROM.
- * Uses the stored property when present, otherwise looks it up once.
- */
-function zohoAccountId_() {
-  var props = PropertiesService.getScriptProperties();
-  var id = props.getProperty('ZOHO_ACCOUNT_ID');
-  if (id) return id;
-
-  var res = UrlFetchApp.fetch(ZOHO_API_BASE + '/api/accounts', {
-    headers: { Authorization: 'Zoho-oauthtoken ' + zohoAccessToken_() },
-    muteHttpExceptions: true
-  });
-  var body = JSON.parse(res.getContentText() || '{}');
-  var accounts = body.data || [];
-  var match = accounts.filter(function (a) {
-    return string_(a.mailboxAddress || a.primaryEmailAddress || a.emailAddress)
-      .toLowerCase() === MAIL_FROM.toLowerCase();
-  })[0] || accounts[0];
-  if (!match) {
-    throw new Error('Zoho account not found: ' + res.getContentText());
-  }
-  id = String(match.accountId);
-  props.setProperty('ZOHO_ACCOUNT_ID', id);
-  return id;
-}
-
-/** Rough HTML -> plain text for the MailApp fallback's body. */
+/** Rough HTML -> plain text for MailApp's body. */
 function htmlToText_(html) {
   return string_(html)
     .replace(/<style[\s\S]*?<\/style>/gi, '')
@@ -1152,15 +1086,15 @@ function htmlToText_(html) {
 }
 
 /**
- * testSendMail — run once from the Apps Script editor to verify Zoho
- * API sending works. It emails MAIL_FROM itself; check that inbox.
+ * testSendMail — run once from the Apps Script editor to verify mail
+ * sending works. It emails MAIL_FROM itself; check that inbox.
  */
 function testSendMail() {
   var ok = sendMail_({
     to: MAIL_FROM,
     subject: 'OanaTravels mail test',
-    body: 'If you can read this, Zoho API sending works.',
-    htmlBody: '<p>If you can read this, <strong>Zoho API sending works</strong>.</p>'
+    body: 'If you can read this, MailApp sending works.',
+    htmlBody: '<p>If you can read this, <strong>MailApp sending works</strong>.</p>'
   });
   Logger.log('testSendMail ok=' + ok);
   return ok;

@@ -6,6 +6,7 @@
     "optimize": "node tools/optimize-images.mjs",
     "test": "node tools/test-order.mjs",
     "test-order": "node tools/test-order.mjs",
+    "test-mail": "node tools/test-mail.mjs",
     "test-free": "node tools/test-free-samples.mjs",
     "test-samples": "node tools/test-free-samples.mjs"
   },
